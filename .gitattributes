@@ -1,0 +1,3 @@
+www/**/*.js text eol=lf
+www/**/*.css text eol=lf
+www/**/*.html text eol=lf

@@ -83,6 +83,24 @@ The Firmware Selector allows to define a script to be placed in the `/etc/uci-de
 
 ## Testing
 
+Run the default checks (ESLint, Prettier and JavaScript unit tests):
+
+```
+npm run check
+```
+
+Run individual checks with `npm run lint`, `npm run format:check`, or
+`npm run test:unit`. The same scripts are available through `yarn run`.
+These commands use the repository configuration directly; no environment
+variables or alternate configuration flags are required.
+
+ESLint uses `.eslintrc.json` for the browser JavaScript modules.
+`prettier.config.cjs` preserves the original Prettier 2 style: semicolons,
+double quotes, 2-space indentation, an 80-column target, ES5 trailing commas
+and LF line endings. Translation JSON files retain the existing
+`.prettierignore` exclusion. `.gitattributes` keeps the checked JavaScript,
+CSS and HTML files in LF when Git checks them out, including on Windows.
+
 Run JavaScript unit tests (requires Node.js 18+):
 
 ```
