@@ -51,33 +51,42 @@ export function setModel(overview, target, id) {
 }
 
 export function changeModel(version, overview, title, context) {
-  const { config, updateImages, setCurrentDevice } = context;
+  const {
+    config,
+    updateImages,
+    setCurrentDevice,
+    isCurrent = () => true,
+  } = context;
+  if (!isCurrent()) return;
   const entry = overview.profiles[title];
   const baseUrl = config.image_urls[version];
   if (entry) {
-    fetch(`${baseUrl}/targets/${entry.target}/profiles.json`, {
+    return fetch(`${baseUrl}/targets/${entry.target}/profiles.json`, {
       cache: "no-cache",
     })
       .then((obj) => {
         if (obj.status !== 200) {
           throw new Error(`Failed to fetch ${obj.url}`);
         }
-        hideAlert();
         return obj.json();
       })
       .then((mobj) => {
+        if (!isCurrent()) return;
+        hideAlert();
         mobj.id = entry.id;
         mobj.images = mobj.profiles[entry.id].images;
         mobj.titles = mobj.profiles[entry.id].titles;
         mobj.device_packages = mobj.profiles[entry.id].device_packages;
-        updateImages(version, mobj);
         setCurrentDevice({
           version: version,
           id: entry.id,
           target: entry.target,
         });
+        updateImages(version, mobj);
       })
-      .catch((err) => showAlert(err.message));
+      .catch((err) => {
+        if (isCurrent()) showAlert(err.message);
+      });
   } else {
     updateImages();
     setCurrentDevice({});
@@ -94,38 +103,29 @@ export function insertSnapshotVersions(versions) {
   versions.push("SNAPSHOT");
 }
 
-export function setupUciDefaults() {
-  const icon = $("#uci-defaults-template");
-  const link = icon.getAttribute("data-link");
-  const textarea = $("#uci-defaults-content");
-  icon.onclick = function () {
-    fetch(link)
-      .then((obj) => {
-        if (obj.status !== 200) {
-          throw new Error(`Failed to fetch ${obj.url}`);
-        }
-        hideAlert();
-        return obj.text();
-      })
-      .then((text) => {
-        if (textarea.value.indexOf(text) !== -1) {
-          textarea.value = textarea.value.replace(text, "");
-        } else {
-          textarea.value = textarea.value + text;
-        }
-      })
-      .catch((err) => showAlert(err.message));
-  };
-}
-
 export function setupProfilesAutocomplete(version, obj, context) {
   const { updateImages, changeModelContext } = context;
+  const isCatalogueCurrent = changeModelContext.isCurrent || (() => true);
+  let selectionGeneration = 0;
+  const resetSelection = () => {
+    if (!isCatalogueCurrent()) return;
+    const selectionId = ++selectionGeneration;
+    changeModelContext.setCurrentDevice({});
+    updateImages();
+    return selectionId;
+  };
   setupAutocompleteList(
     $("#models"),
     Object.keys(obj.profiles),
-    updateImages,
+    resetSelection,
     (selectList) => {
-      changeModel(version, obj, selectList.value, changeModelContext);
+      const selectionId = resetSelection();
+      if (selectionId === undefined) return;
+      changeModel(version, obj, selectList.value, {
+        ...changeModelContext,
+        isCurrent: () =>
+          isCatalogueCurrent() && selectionId === selectionGeneration,
+      });
     }
   );
 }

@@ -1,7 +1,9 @@
-# OpenWrt Firmware Selector
+# OpenWrt / ImmortalWrt Firmware Selector
 
-A simple OpenWrt firmware selector using autocompletion. Uses plain
-HTML/CSS/JavaScript. Checkout the [Demo](https://firmware-selector.openwrt.org).
+A firmware selector for OpenWrt and ImmortalWrt using autocompletion and plain
+HTML/CSS/JavaScript. This project extends the [OpenWrt selector](https://firmware-selector.openwrt.org)
+with distribution selection and configurable build services. The upstream demo
+does not include these local extensions.
 
 ![image](misc/screenshot.png)
 
@@ -18,7 +20,7 @@ Configure with [config.js](www/config.js).
 Steps:
 
 1. Place the `www/` folder somewhere web accessible.
-2. Set `image_url` in `www/config.js` to where the images are located.  
+2. Set `image_url` on each `asu_services` entry in `www/config.js` to where that service's images are located (use the top-level `image_url` for legacy single-service deployments).
    Example: https://downloads.openwrt.org
 3. Organize the images like on [downloads.openwrt.org](https://downloads.openwrt.org).  
    Example: https://downloads.openwrt.org/releases/23.05.4/targets/ramips/mt7621/openwrt-23.05.4-ramips-mt7621-dlink_dir-1935-a1-squashfs-sysupgrade.bin  
@@ -33,7 +35,7 @@ Steps:
 }
 ```
 
-Note: These values can be overwritten with `versions` and `default_version` in the `config.js` file.
+Note: These values can be overwritten with per-service `versions` and `default_version` in `config.js` (or top-level values for a legacy single-service deployment).
 
 5. Place `.overview.json` files in each version folder.  
    Example: `https://downloads.openwrt.org/releases/23.05.4/.overview.json`
@@ -56,12 +58,48 @@ If the option is not available (OpenWrt 18.06 or 19.07.3), apply commit [openwrt
 
 [ASU](https://github.com/openwrt/asu) is a build server that builds OpenWrt images with a given list of packages on request. The firmware-selector can be used as an interface to send these requests and to download the images when finished.
 
+### Firmware and build service selection
+
+First choose **Firmware distribution**, then choose one of its **Build services**:
+
+| Distribution | Service | Root filesystem size |
+| --- | --- | --- |
+| OpenWrt (default) | `https://sysupgrade.openwrt.org` | 1–1024 MiB |
+| ImmortalWrt | `https://sysupgrade.immortalwrt.org` | 1–4096 MiB |
+| ImmortalWrt | `https://sysupgrade.kyarucloud.moe` | 1–4096 MiB |
+
+Changing distribution or service reloads its version/device catalog and clears the selected device. Selecting a device fills packages from its own firmware metadata and service defaults. Edited advanced options are retained; review custom feed URLs for compatibility with the new distribution. First-boot script drafts are restored separately for each distribution. The version list and default stable version come from that source's `.versions.json`. The page shows the selected distribution, build service and firmware source, and the **All Downloads** link follows that source.
+
+Selection links include `asu=<service-id>` and restore both selectors. The existing `asu=immortalwrt` ID still selects KyaruCloud; `asu=immortalwrt-official` selects the ImmortalWrt official service. Switching to a distribution selects its configured default service, or its first listed service.
+
+Configure `asu_services` in `config.js` with entries containing `id`, `distribution` (display name, also used for grouping), `name`, `url` (ASU base URL), `image_url` (matching firmware metadata/download source), and `rootfs_size_mb_max`. Optional per-service `versions`, `default_version` and `show_snapshots` control the catalog; `info_url` overrides the device information link. Optional `asu_extra_packages` overrides the global extra package list, with `[]` explicitly adding no extra packages. The included ImmortalWrt services use `[]` to follow their own device defaults.
+
+IDs must be unique; URLs must be HTTP(S) base URLs without credentials, query strings or fragments. `asu_url` selects the initial service unless a valid `asu` link parameter is supplied. If `asu_services` is omitted, the existing single-service `asu_url`, `image_url`, `versions` and `default_version` configuration still works; optional `asu_rootfs_size_mb_max` defaults to 1024. A missing per-service `distribution` inherits the top-level `distribution`, or `OpenWrt` if neither is set. Set this explicitly when adding another distribution.
+
+The preconfigured limits were verified against the services' OpenAPI documents on 2026-10-30. Both ImmortalWrt services report `https://downloads.immortalwrt.org` as their upstream; using OpenWrt revisions with them is not supported by this configuration. These are deployment settings, not a background capability monitor: recheck them when replacing a service or when its API changes. Availability of metadata does not prove that every device/version can currently be built.
+
+The [ImmortalWrt selector repository](https://github.com/immortalwrt/firmware-selector-immortalwrt-org/blob/30c511175ba8f9cbdbd21bf1bb565c98bc25a01b/www/config.js) and its [deployed configuration](https://firmware-selector.immortalwrt.org/config.js) used different defaults when checked: the repository selected KyaruCloud, while the deployed site selected `sysupgrade.immortalwrt.org`. This selector lists both explicitly rather than assuming those deployments are interchangeable. A service may restrict custom feeds: the ImmortalWrt official overview currently lists only `https://nikkinikki.pages.dev` in `repository_allow_list`. The backend's current policy determines whether a feed is accepted.
+
+Build requests, status polling and resulting downloads stay bound to the service and device selected at submission. Distribution/service/version/device controls are locked during a build and released on completion or failure. The selected service receives package lists, feed verification keys and first-boot scripts.
+
+### Advanced build options (ASU)
+
+Expand **Advanced build options** in the customization area to set:
+
+* **Root filesystem size**: a positive integer within the selected service's displayed range (OpenWrt official: 1–1024 MiB; both ImmortalWrt services: 1–4096 MiB). Leave it empty to use the device default; no `rootfs_size_mb` field is sent in that case. This changes the ImageBuilder root partition size where supported by the target image layout, not the device's physical storage.
+* **Custom software feeds**: add or remove rows with a unique name and an HTTP(S) feed directory URL. Names may contain letters, numbers, underscores, dots and hyphens. Completely empty rows are ignored; partial rows, duplicate names and invalid URLs prevent submission.
+* **Feed signing public keys**: add one complete public key per entry, preserving line breaks. For example, an opkg feed may provide a usign public key. The ASU server validates the key format; this field is for feed verification keys, not HTTPS certificates or private keys.
+
+Feeds default to **Append**, preserving the ImageBuilder's existing feeds. **Replace** uses only the supplied feeds and requires all feeds needed by the selected packages. The mode is sent only when at least one custom feed is supplied. This explicitly defaults to `append`, even on ASU servers whose own default is `replace`.
+
+Values in `config.js` initialize these controls. Changes apply to subsequent build requests in the current page; deleting a preconfigured row removes it from those requests. Reloading the page restores deployment defaults. Optional `asu_rootfs_size_mb` sets the initial size. Switching to a service with a smaller limit preserves the entered size; an out-of-range value must be corrected before the next request.
+
 ### Optional extra package repositories (ASU)
 
-Additional package feeds can be configured via `config.js` and are sent with each ASU build request:
+Initial package feeds can be configured via `config.js` and edited in the page:
 
 * `asu_repositories`: Object map of repository names to URLs.
-* `asu_repositories_mode`: Optional mode (`append` or `replace`).
+* `asu_repositories_mode`: Optional initial mode (`append`, the default, or `replace`).
 * `asu_repository_keys`: Optional list of repository signing keys.
 
 Repository URLs can use placeholders which are resolved per selected device/version:
@@ -73,13 +111,19 @@ Repository URLs can use placeholders which are resolved per selected device/vers
 
 ### Optional extra packages per device (ASU)
 
-At startup the selector requests `device_packages.json` next to the app (under `www/`). If the file is missing or invalid, it is ignored. The JSON object maps **device profile IDs** (the same strings as in OpenWrt’s `profiles.json`, usually `vendor,model`) to a list of extra package names. Those packages are appended when the ASU package field is prefilled, after the image’s default packages, profile `device_packages`, and `asu_extra_packages` from `config.js`.
+At startup the selector requests `device_packages.json` next to the app (under `www/`). If the file is missing or invalid, it is ignored. The JSON object maps **device profile IDs** (the same strings as in OpenWrt’s `profiles.json`, usually `vendor,model`) to a list of extra package names. Those packages are appended when the ASU package field is prefilled, after the image’s default packages, profile `device_packages`, and the selected service's effective `asu_extra_packages`. This optional device map applies across distributions; configure only packages available for the intended deployments.
 
 Copy [`www/device_packages.json.example`](www/device_packages.json.example) to `www/device_packages.json` and adjust it for your deployment. Keys may use either comma or underscore as the first separator; the code tries both so `tplink,archer-c7-v5` and `tplink_archer-c7-v5` can match the same entry depending on how the ID is spelled.
 
 ### UCI-Defaults
 
-The Firmware Selector allows to define a script to be placed in the `/etc/uci-defaults/` folder of the OpenWrt image. These scripts are executed once on the first reboot and then deleted. See the [OpenWrt documentation](https://openwrt.org/docs/guide-developer/uci-defaults) on this topic.
+The Firmware Selector allows a script to be placed in the image's `/etc/uci-defaults/` folder. OpenWrt and ImmortalWrt use the same mechanism: scripts that return success are removed; scripts returning a nonzero status are retried on a later boot. See the [OpenWrt documentation](https://openwrt.org/docs/guide-developer/uci-defaults).
+
+The editor starts empty. **Insert example for this system** loads the selected distribution's example and appends it to the current draft without rewriting existing commands. An identical example already present is not added again. The supplied OpenWrt and ImmortalWrt examples use the same UCI operations, with their respective Wi-Fi name examples; users still need to select settings appropriate for the device, firmware version and installed packages.
+
+Drafts are kept in memory for the current page, keyed by `distribution`. Switching OpenWrt ↔ ImmortalWrt saves and restores their separate drafts, including intentionally empty drafts. Switching between ImmortalWrt's official service and KyaruCloud keeps the same ImmortalWrt draft. Reloading or leaving the page clears this draft state; it is not stored in browser storage or encoded in share links.
+
+Configure `uci_defaults_templates` in `config.js` as a map from the same distribution names used in `asu_services` to template URLs. The defaults are `OpenWrt: "uci-defaults/setup.sh"` and `ImmortalWrt: "uci-defaults/immortalwrt.sh"`. Unconfigured distributions use the template button's legacy `data-link`. A pending template response is ignored if the distribution changes or the user edits the draft while it loads. Loading failures leave the draft intact and allow retry. A build receives the currently displayed draft at submission; subsequent edits do not change an already submitted build.
 
 ## Testing
 
@@ -118,6 +162,27 @@ With test coverage:
 ```
 yarn run test:coverage
 ```
+
+Browser tests require Python 3.11+ and Firefox installed through Playwright.
+With a Python virtual environment activated, install the test dependencies once:
+
+```
+python -m pip install pytest-playwright pytest-simplehttpserver
+python -m playwright install firefox
+```
+
+Run the browser suite from the repository root, with port 8000 available:
+
+```
+python -m pytest tests --simplehttpserver-directory ./
+```
+
+The suite covers the legacy catalog, all three build services, root filesystem
+limits, custom feeds and public keys, script drafts, catalog retries and device
+selection races. It loads the real local page, deployment config and script
+templates, while intercepting remote metadata and ASU requests with fixed test
+responses. It does not submit real firmware builds or verify the availability of
+the live services. The existing CI workflow discovers these tests automatically.
 
 ## Translations
 

@@ -1,37 +1,30 @@
 import { $, $$, hide, show, split } from "./utils.js";
 import { translate } from "./translation.js";
+import {
+  buildOptionMessages,
+  buildOptionsFromConfig,
+  prepareBuildOptions,
+} from "./build-options.js";
+import { getAsuServices, selectAsuService } from "./asu-services.js";
 
 export function createAsuRequestBuilder(context) {
-  const { config, progress, ofsVersion, getCurrentDevice, updateImages } =
-    context;
-
-  function getOpenwrtBranch(openwrtVersion) {
-    const match = String(openwrtVersion || "").match(/^(\d+\.\d+)/);
-    return match ? match[1] : String(openwrtVersion || "");
-  }
-
-  function resolveAsuRepositories(
-    rawRepositories,
-    currentDevice,
-    openwrtVersion
-  ) {
-    const repositories = rawRepositories || {};
-    const [target = "", subtarget = ""] = String(
-      currentDevice?.target || ""
-    ).split("/");
-    const openwrtBranch = getOpenwrtBranch(openwrtVersion);
-
-    return Object.fromEntries(
-      Object.entries(repositories).map(([name, url]) => [
-        name,
-        String(url)
-          .replaceAll("{openwrt_branch}", openwrtBranch)
-          .replaceAll("{openwrt_version}", String(openwrtVersion || ""))
-          .replaceAll("{target}", target)
-          .replaceAll("{subtarget}", subtarget),
-      ])
-    );
-  }
+  const {
+    config,
+    progress,
+    ofsVersion,
+    getCurrentDevice,
+    updateImages,
+    getBuildService = () => selectAsuService(getAsuServices(config), config),
+    getBuildOptions = (device, version, service) =>
+      prepareBuildOptions(
+        buildOptionsFromConfig(config),
+        device,
+        version,
+        service.rootfs_size_mb_max
+      ),
+    onBuildStateChange = () => {},
+  } = context;
+  let activeBuild = 0;
 
   function showStatus(message, loading, type) {
     const bs = $("#asu-buildstatus");
@@ -69,49 +62,60 @@ export function createAsuRequestBuilder(context) {
     if (tr) {
       msgSpan.className = tr;
     }
-    msgSpan.textContent = message;
+    msgSpan.textContent = buildOptionMessages[message] || message;
     spanContainer.appendChild(msgSpan);
 
     translate();
   }
 
-  function buildAsuRequest(requestHash) {
-    $$("#download-table1 *").forEach((e) => e.remove());
-    $$("#download-links2 *").forEach((e) => e.remove());
-    $$("#download-extras2 *").forEach((e) => e.remove());
-    hide("#asu-log");
-
-    const currentDevice = getCurrentDevice();
+  function buildAsuRequest(requestHash, pending) {
+    if (pending && pending.id !== activeBuild) return;
+    const currentDevice = pending?.device || getCurrentDevice();
     if (!currentDevice || !currentDevice.id) {
       showStatus("bad profile", false, "error");
       return;
     }
 
-    const selectedVersion = $("#versions").value;
-    const reposMode = config.asu_repositories_mode;
-    const buildBody = {
-      profile: currentDevice.id,
-      target: currentDevice.target,
-      packages: split($("#asu-packages").value),
-      defaults: $("#uci-defaults-content").value,
-      version_code: $("#image-code").innerText,
-      version: selectedVersion,
-      diff_packages: true,
-      client: "ofs/" + ofsVersion,
-      repositories: resolveAsuRepositories(
-        config.asu_repositories,
-        currentDevice,
-        selectedVersion
-      ),
-      repository_keys: config.asu_repository_keys || [],
-    };
-    if (reposMode === "replace" || reposMode === "append") {
-      buildBody.repositories_mode = reposMode;
+    let buildBody;
+    let task = pending;
+    try {
+      if (!task)
+        task = {
+          device: { ...currentDevice },
+          service: { ...getBuildService() },
+        };
+      if (!task.service.url) throw new Error("No ASU service configured");
+      if (!requestHash) {
+        const selectedVersion = $("#versions").value;
+        buildBody = {
+          profile: currentDevice.id,
+          target: currentDevice.target,
+          packages: split($("#asu-packages").value),
+          defaults: $("#uci-defaults-content").value,
+          version_code: $("#image-code").innerText,
+          version: selectedVersion,
+          diff_packages: true,
+          client: "ofs/" + ofsVersion,
+          ...getBuildOptions(task.device, selectedVersion, task.service),
+        };
+      }
+    } catch (error) {
+      showStatus(error.message, false, "error");
+      return;
     }
+    if (!pending) {
+      task.id = ++activeBuild;
+      onBuildStateChange(true);
+    }
+    $$("#download-table1 *").forEach((e) => e.remove());
+    $$("#download-links2 *").forEach((e) => e.remove());
+    $$("#download-extras2 *").forEach((e) => e.remove());
+    hide("#asu-log");
     const requestUrl =
-      `${config.asu_url}/api/v1/build` + (requestHash ? `/${requestHash}` : "");
+      `${task.service.url}/api/v1/build` +
+      (requestHash ? `/${encodeURIComponent(requestHash)}` : "");
 
-    fetch(requestUrl, {
+    return fetch(requestUrl, {
       cache: "no-cache",
       method: requestHash ? "GET" : "POST",
       headers: {
@@ -119,63 +123,67 @@ export function createAsuRequestBuilder(context) {
       },
       body: requestHash ? null : JSON.stringify(buildBody),
     })
-      .then((response) => {
+      .then(async (response) => {
+        const mobj = await response.json();
+        if (task.id !== activeBuild) return;
+        if (response.status !== 202) {
+          onBuildStateChange(false);
+          if ("stderr" in mobj) {
+            $("#asu-stderr").innerText = mobj.stderr;
+            $("#asu-stdout").innerText = mobj.stdout;
+            show("#asu-log");
+          } else {
+            hide("#asu-log");
+          }
+        }
         switch (response.status) {
           case 200:
-            response.json().then((mobj) => {
-              if ("stderr" in mobj) {
-                $("#asu-stderr").innerText = mobj.stderr;
-                $("#asu-stdout").innerText = mobj.stdout;
-                show("#asu-log");
-              } else {
-                hide("#asu-log");
-              }
-              showStatus("tr-build-successful", false, "info");
-              mobj.id = currentDevice.id;
-              mobj.asu_image_url = config.asu_url + "/store/" + mobj.bin_dir;
-              updateImages(mobj.version_number, mobj);
-            });
+            showStatus("tr-build-successful", false, "info");
+            mobj.id = task.device.id;
+            mobj.asu_image_url = task.service.url + "/store/" + mobj.bin_dir;
+            updateImages(mobj.version_number, mobj);
             break;
           case 202:
-            response.json().then((mobj) => {
-              showStatus(
-                `tr-${mobj.imagebuilder_status || mobj.detail || "init"}`,
-                true,
-                "info"
+            if (typeof mobj.request_hash !== "string" || !mobj.request_hash) {
+              throw new Error("Missing ASU request hash");
+            }
+            showStatus(
+              `tr-${mobj.imagebuilder_status || mobj.detail || "init"}`,
+              true,
+              "info"
+            );
+            if (mobj.queue_position) {
+              $("#asu-buildstatus span").appendChild(
+                document.createTextNode(` (${mobj.queue_position})`)
               );
-              if (mobj.queue_position) {
-                $("#asu-buildstatus span").appendChild(
-                  document.createTextNode(` (${mobj.queue_position})`)
-                );
-              }
-              setTimeout(buildAsuRequest.bind(null, mobj.request_hash), 5000);
-            });
+            }
+            setTimeout(() => buildAsuRequest(mobj.request_hash, task), 5000);
             break;
           default:
-            response.json().then((mobj) => {
-              if ("stderr" in mobj) {
-                $("#asu-stderr").innerText = mobj.stderr;
-                $("#asu-stdout").innerText = mobj.stdout;
-                show("#asu-log");
-              } else {
-                hide("#asu-log");
-              }
-
-              if ("detail" in mobj) {
-                showStatus(mobj.detail, false, "error");
-              } else if (
-                "stderr" in mobj &&
-                mobj.stderr.includes("images are too big")
-              ) {
-                showStatus("tr-build-size", false, "error");
-              } else {
-                showStatus("tr-build-failed", false, "error");
-              }
-            });
+            if ("detail" in mobj) {
+              showStatus(
+                typeof mobj.detail === "string"
+                  ? mobj.detail
+                  : JSON.stringify(mobj.detail),
+                false,
+                "error"
+              );
+            } else if (
+              "stderr" in mobj &&
+              mobj.stderr.includes("images are too big")
+            ) {
+              showStatus("tr-build-size", false, "error");
+            } else {
+              showStatus("tr-build-failed", false, "error");
+            }
             break;
         }
       })
-      .catch((err) => showStatus(err.message, false, "error"));
+      .catch((err) => {
+        if (task.id !== activeBuild) return;
+        onBuildStateChange(false);
+        showStatus(err.message, false, "error");
+      });
   }
 
   return buildAsuRequest;

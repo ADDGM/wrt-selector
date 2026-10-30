@@ -18,6 +18,10 @@ Status: implemented
 - `package.json` 提供 `lint`、`format:check` 与组合 `check`，后者依次运行 ESLint、Prettier 和现有 JavaScript 单测。README 给出不需要环境变量或替代配置参数的日常命令。
 - CI 使用同一组检查脚本，并将 ESLint、Prettier、Git 换行配置、package.json 和 yarn.lock 纳入触发路径。单测覆盖率与 Firefox 测试继续使用既有步骤。
 
+## Related notes
+
+活跃笔记审计得到三篇部分重叠记录：[高级构建选项](../feature/2026-10-30-asu-build-options.md)、[服务选择](../feature/2026-10-30-asu-service-selection.md)、[脚本草稿](../feature/2026-10-30-uci-defaults-drafts.md)。本篇接管其中检查配置与格式故障的当前结论，三篇保留各自功能决定并互链；没有需删除或归档的提案。
+
 ## Alternatives considered
 
 - 继续使用 `--no-eslintrc` 与 `--no-config`：能立即完成单次验证，但默认命令与 CI 仍失败，后续维护者还需记住绕过参数。
@@ -27,7 +31,7 @@ Status: implemented
 
 ## Verification
 
-- `npm run check` 通过：默认 ESLint、全量 `www/` 格式检查和 现有 JavaScript 单测全部通过。
+- `npm run check` 通过：默认 ESLint、全量 `www/` 格式检查和 179 项 JavaScript 单测全部通过。
 - 三个整理文件的语法树去除位置与原始字面量格式后，与修改前 SHA-256 完全一致；Git 内容 diff 也无逻辑差异，变化仅为工作区换行。
 - `git check-attr` 验证根目录 config.js 与嵌套 JS、CSS、HTML 均使用 LF，logo.svg 和 favicon.ico 未匹配；`git ls-files --eol` 确认受检查的已跟踪文件在索引与工作区均为 LF。
 - CI 使用的 `yarn run lint` 与 `yarn run format:check` 均通过；YAML 解析、两个事件的配置触发路径及 package 脚本引用检查通过。

@@ -162,6 +162,18 @@ export function buildAsuPackages(mobj, config, customDevicePackages) {
   );
 }
 
+export function getSelectionUrl(mobj, serviceId) {
+  const url = new URL(document.location.href);
+  url.hash = "";
+  url.search = new URLSearchParams({
+    version: mobj.version_number,
+    target: mobj.target,
+    id: mobj.id,
+    ...(serviceId ? { asu: serviceId } : {}),
+  });
+  return url.href;
+}
+
 export function updateImages(version, mobj, context) {
   const { config, currentDevice, customDevicePackages } = context;
 
@@ -204,16 +216,7 @@ export function updateImages(version, mobj, context) {
         .replace("{version}", mobj.version_number)
     );
 
-    setValue(
-      "#image-link",
-      document.location.href.split("?")[0] +
-        "?version=" +
-        encodeURIComponent(mobj.version_number) +
-        "&target=" +
-        encodeURIComponent(mobj.target) +
-        "&id=" +
-        encodeURIComponent(mobj.id)
-    );
+    setValue("#image-link", getSelectionUrl(mobj, config.asu_service_id));
 
     mobj.images.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -269,13 +272,7 @@ export function updateImages(version, mobj, context) {
       history.replaceState(
         null,
         null,
-        document.location.href.split("?")[0] +
-          "?version=" +
-          encodeURIComponent(mobj.version_number) +
-          "&target=" +
-          encodeURIComponent(mobj.target) +
-          "&id=" +
-          encodeURIComponent(mobj.id)
+        getSelectionUrl(mobj, config.asu_service_id)
       );
     }
 

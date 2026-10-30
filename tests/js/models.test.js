@@ -1,10 +1,229 @@
-import "./setup.js";
-import { describe, it } from "node:test";
+import { mockElement } from "./setup.js";
+import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   insertSnapshotVersions,
   normalizeOverviewProfiles,
+  changeModel,
+  setupProfilesAutocomplete,
 } from "../../www/js/models.js";
+
+describe("device requests after catalogue changes", () => {
+  const originalFetch = globalThis.fetch;
+  const originalQuery = document._qsImpl;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    document._qsImpl = originalQuery;
+  });
+
+  for (const failure of [false, true]) {
+    it(`ignores a late ${
+      failure ? "error" : "success"
+    } without changing the current alert`, async () => {
+      let finish;
+      let current = true;
+      const alert = mockElement({ innerText: "current catalogue error" });
+      document._qsImpl = () => alert;
+      globalThis.fetch = () => new Promise((resolve) => (finish = resolve));
+      const pending = changeModel(
+        "25.12.6",
+        {
+          profiles: { Device: { id: "device", target: "x86/64" } },
+        },
+        "Device",
+        {
+          config: {
+            image_urls: {
+              "25.12.6": "https://downloads.example/releases/25.12.6",
+            },
+          },
+          isCurrent: () => current,
+          updateImages: () => assert.fail("Old device must not update images"),
+          setCurrentDevice: () =>
+            assert.fail("Old device must not become current"),
+        }
+      );
+      current = false;
+      finish({
+        status: failure ? 501 : 200,
+        url: "old-device",
+        json: async () => ({}),
+      });
+      await pending;
+      assert.equal(alert.innerText, "current catalogue error");
+    });
+  }
+
+  it("still shows errors for the current catalogue", async () => {
+    const alert = mockElement();
+    document._qsImpl = () => alert;
+    globalThis.fetch = async () => {
+      throw new TypeError("Current request failed");
+    };
+    await changeModel(
+      "v1",
+      { profiles: { Device: { id: "device", target: "x86/64" } } },
+      "Device",
+      {
+        config: { image_urls: { v1: "https://downloads.example" } },
+        isCurrent: () => true,
+      }
+    );
+    assert.equal(alert.innerText, "Current request failed");
+  });
+});
+
+describe("model selection requests", () => {
+  const originalFetch = globalThis.fetch;
+  const originalQuery = document._qsImpl;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    document._qsImpl = originalQuery;
+  });
+
+  function mount() {
+    const input = mockElement();
+    const alert = mockElement();
+    const requests = [];
+    const updates = [];
+    let device = {};
+    let catalogueCurrent = true;
+    document._qsImpl = (selector) => (selector === "#models" ? input : alert);
+    globalThis.fetch = (url) =>
+      new Promise((resolve, reject) => {
+        requests.push({
+          url,
+          reject,
+          finish(id) {
+            resolve({
+              status: 200,
+              json: async () => ({
+                profiles: {
+                  [id]: {
+                    images: [],
+                    titles: [{ title: id }],
+                    device_packages: [id],
+                  },
+                },
+              }),
+            });
+          },
+        });
+      });
+    const updateImages = (version, data) => {
+      if (data) updates.push({ version, id: data.id, current: device.id });
+    };
+    setupProfilesAutocomplete(
+      "v1",
+      {
+        profiles: {
+          A: { id: "a", target: "target/a" },
+          B: { id: "b", target: "target/b" },
+        },
+      },
+      {
+        updateImages,
+        changeModelContext: {
+          config: { image_urls: { v1: "https://downloads.example/v1" } },
+          updateImages,
+          setCurrentDevice: (next) => (device = next),
+          isCurrent: () => catalogueCurrent,
+        },
+      }
+    );
+    return {
+      requests,
+      updates,
+      alert,
+      device: () => device,
+      select(value, enter = false) {
+        input.value = value;
+        if (enter) input.onkeyup({ key: "Enter" });
+        else input.oninput();
+      },
+      leaveCatalogue() {
+        catalogueCurrent = false;
+      },
+    };
+  }
+
+  const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+  it("keeps the latest device when responses arrive in reverse order", async () => {
+    const ui = mount();
+    ui.select("A");
+    ui.select("B");
+    ui.requests[1].finish("b");
+    await flush();
+    ui.requests[0].finish("a");
+    await flush();
+    assert.equal(ui.device().id, "b");
+    assert.deepEqual(ui.updates, [{ version: "v1", id: "b", current: "b" }]);
+  });
+
+  it("clears the build device during edits and discards an in-flight response after clearing input", async () => {
+    const ui = mount();
+    ui.select("A");
+    ui.requests[0].finish("a");
+    await flush();
+    ui.select("B");
+    assert.deepEqual(ui.device(), {});
+    ui.select("");
+    ui.requests[1].finish("b");
+    await flush();
+    assert.deepEqual(ui.device(), {});
+    assert.equal(ui.updates.length, 1);
+  });
+
+  it("invalidates a request even if the input is edited back to the same title", async () => {
+    const ui = mount();
+    ui.select("A");
+    ui.select("");
+    ui.select("A");
+    ui.requests[0].finish("a");
+    await flush();
+    assert.deepEqual(ui.device(), {});
+    assert.equal(ui.updates.length, 0);
+    ui.requests[1].finish("a");
+    await flush();
+    assert.equal(ui.device().id, "a");
+  });
+
+  it("ignores an old failure while showing a failure from the selected device", async () => {
+    const ui = mount();
+    ui.select("A");
+    ui.select("B");
+    ui.requests[1].reject(new Error("B failed"));
+    await flush();
+    ui.requests[0].reject(new Error("A failed"));
+    await flush();
+    assert.equal(ui.alert.innerText, "B failed");
+    assert.deepEqual(ui.device(), {});
+  });
+
+  it("tracks selections through the Enter callback as well as input events", async () => {
+    const ui = mount();
+    ui.select("A", true);
+    ui.select("B", true);
+    ui.requests[1].finish("b");
+    ui.requests[0].finish("a");
+    await flush();
+    assert.equal(ui.device().id, "b");
+    assert.equal(ui.updates.length, 1);
+  });
+
+  it("continues to isolate responses and callbacks from a replaced catalogue", async () => {
+    const ui = mount();
+    ui.select("A");
+    ui.leaveCatalogue();
+    ui.select("B", true);
+    ui.requests[0].finish("a");
+    await flush();
+    assert.equal(ui.requests.length, 1);
+    assert.equal(ui.updates.length, 0);
+    assert.deepEqual(ui.device(), {});
+  });
+});
 
 describe("insertSnapshotVersions", () => {
   it("adds branch snapshots and SNAPSHOT", () => {

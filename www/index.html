@@ -4,7 +4,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OpenWrt Firmware Selector</title>
+    <title class="tr-selector-title">
+      OpenWrt / ImmortalWrt Firmware Selector
+    </title>
     <link rel="icon" href="favicon.ico" />
     <link rel="stylesheet" href="index.css" />
     <script src="config.js"></script>
@@ -14,8 +16,9 @@
     <!-- header across the whole page -->
     <header>
       <div>
-        <a href="https://openwrt.org">
-          <img src="logo.svg" width="180" alt="Logo" />
+        <a href="./" class="selector-brand">
+          <span>OpenWrt · ImmortalWrt</span>
+          <small class="tr-selector-name">Firmware Selector</small>
         </a>
         <div style="flex-grow: 1"></div>
         <div>
@@ -80,11 +83,33 @@
 
     <div class="container">
       <div>
-        <h2 class="tr-load">Download OpenWrt Firmware for your Device</h2>
+        <h2 class="tr-firmware-load">Download firmware for your device</h2>
         <p class="tr-message">
-          Type the name or model of your device, then select a stable build or
-          the nightly "snapshot" build.
+          Choose a firmware distribution and build service, then select your
+          device and version.
         </p>
+
+        <div id="firmware-distribution-field" class="asu-option-field hide">
+          <label for="firmware-distribution" class="tr-firmware-distribution"
+            >Firmware distribution</label
+          >
+          <select id="firmware-distribution"></select>
+          <p class="asu-option-help">
+            <span class="tr-firmware-source">Firmware source:</span>
+            <a id="firmware-source-url"></a>
+          </p>
+        </div>
+        <div id="asu-service-field" class="asu-option-field hide">
+          <label for="asu-service" class="tr-asu-service">Build service</label>
+          <select id="asu-service" aria-describedby="asu-service-help"></select>
+          <p class="asu-option-help"><a id="asu-service-url"></a></p>
+          <p id="asu-service-help" class="asu-option-help tr-asu-service-help">
+            Changing distribution or service reloads devices, versions and
+            default packages. Script drafts are restored per distribution.
+            Advanced options are retained; check that custom feeds match the
+            selected distribution. Selection is locked while a build is running.
+          </p>
+        </div>
 
         <!-- Model name and Build dropdown -->
         <div id="models-autocomplete" class="autocomplete">
@@ -108,6 +133,16 @@
           <!-- static information about the selected build -->
           <div>
             <h3 id="build-title" class="tr-version-build">About this build</h3>
+            <div class="row">
+              <div class="col1 tr-firmware-distribution">
+                Firmware distribution
+              </div>
+              <div class="col2" id="image-distribution"></div>
+            </div>
+            <div class="row">
+              <div class="col1 tr-asu-service">Build service</div>
+              <div class="col2" id="image-service"></div>
+            </div>
             <div class="row">
               <div class="col1 tr-model">Model</div>
               <div class="col2" id="image-model"></div>
@@ -178,20 +213,179 @@
                 <h4 class="tr-defaults" id="uci-defaults-label">
                   Script to run on first boot (uci-defaults)
                 </h4>
+                <p class="asu-option-help">
+                  <span class="tr-uci-draft">Script draft:</span>
+                  <strong id="uci-defaults-distribution"></strong>
+                </p>
+                <p
+                  id="uci-defaults-help"
+                  class="asu-option-help tr-uci-drafts-help"
+                >
+                  Drafts are kept separately for each firmware distribution in
+                  this page. Build services for the same distribution share its
+                  draft. Reloading the page clears the drafts.
+                </p>
                 <div id="uci-defaults-group">
                   <textarea
                     rows="10"
                     id="uci-defaults-content"
                     aria-labelledby="uci-defaults-label"
+                    aria-describedby="uci-defaults-help"
                     autocomplete="off"
                     spellcheck="false"
                     autocapitalize="off"
                   ></textarea>
-                  <span
+                  <button
+                    type="button"
                     id="uci-defaults-template"
+                    class="asu-option-button tr-uci-insert-template"
                     data-link="uci-defaults/setup.sh"
-                  ></span>
+                  >
+                    Insert example for this system
+                  </button>
                 </div>
+                <details id="asu-advanced">
+                  <summary class="tr-advanced-options">
+                    Advanced build options
+                  </summary>
+                  <div class="asu-option-field">
+                    <label for="asu-rootfs-size" class="tr-rootfs-size"
+                      >Root filesystem size (MiB)</label
+                    >
+                    <input
+                      id="asu-rootfs-size"
+                      type="number"
+                      min="1"
+                      max="1024"
+                      step="1"
+                      placeholder="256"
+                      aria-describedby="asu-rootfs-help"
+                    />
+                    <p
+                      id="asu-rootfs-help"
+                      class="asu-option-help tr-rootfs-size-help"
+                    >
+                      Leave empty for the device default. The allowed range
+                      follows the selected service. This depends on the device
+                      image layout and does not increase physical storage.
+                    </p>
+                    <p class="asu-option-help">
+                      <span class="tr-rootfs-range">Allowed range (MiB):</span>
+                      <span id="asu-rootfs-range">1–1024</span>
+                    </p>
+                  </div>
+                  <h4 class="tr-repositories">Custom software feeds</h4>
+                  <p class="asu-option-help tr-repositories-help">
+                    Enter a unique name and an HTTP(S) feed directory URL.
+                    Version and platform placeholders are supported.
+                  </p>
+                  <p class="asu-option-help">
+                    <code>{openwrt_branch}</code>,
+                    <code>{openwrt_version}</code>, <code>{target}</code>,
+                    <code>{subtarget}</code>
+                  </p>
+                  <div class="asu-option-field">
+                    <label
+                      for="asu-repositories-mode"
+                      class="tr-repositories-mode"
+                      >Feed mode</label
+                    >
+                    <select
+                      id="asu-repositories-mode"
+                      aria-describedby="asu-repositories-mode-help"
+                    >
+                      <option value="append" class="tr-repositories-append">
+                        Append to existing feeds
+                      </option>
+                      <option value="replace" class="tr-repositories-replace">
+                        Replace all existing feeds
+                      </option>
+                    </select>
+                    <p
+                      id="asu-repositories-mode-help"
+                      class="asu-option-help tr-repositories-mode-help"
+                    >
+                      Append keeps the build server's existing feeds. Replace
+                      uses only the feeds listed below; include every feed
+                      needed by your packages.
+                    </p>
+                  </div>
+                  <div id="asu-repositories"></div>
+                  <button
+                    type="button"
+                    id="asu-add-repository"
+                    class="asu-option-button tr-add-repository"
+                  >
+                    Add feed
+                  </button>
+                  <h4 class="tr-repository-keys">Feed signing public keys</h4>
+                  <p
+                    id="asu-keys-help"
+                    class="asu-option-help tr-repository-keys-help"
+                  >
+                    Paste one complete feed signing public key per entry,
+                    preserving line breaks (for example, a usign public key).
+                    The build server verifies the key format.
+                  </p>
+                  <div id="asu-repository-keys"></div>
+                  <button
+                    type="button"
+                    id="asu-add-key"
+                    class="asu-option-button tr-add-key"
+                  >
+                    Add public key
+                  </button>
+                </details>
+                <template id="asu-repository-template">
+                  <div class="asu-repository asu-option-row">
+                    <label>
+                      <span class="tr-repository-name">Feed name</span>
+                      <input
+                        class="asu-repository-name"
+                        type="text"
+                        placeholder="my_feed"
+                        spellcheck="false"
+                        autocapitalize="off"
+                      />
+                    </label>
+                    <label>
+                      <span class="tr-repository-url">Feed URL</span>
+                      <input
+                        class="asu-repository-url"
+                        type="text"
+                        inputmode="url"
+                        placeholder="https://example.com/packages/{openwrt_branch}/{target}/{subtarget}"
+                        spellcheck="false"
+                        autocapitalize="off"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      class="asu-option-button tr-remove-repository"
+                    >
+                      Remove feed
+                    </button>
+                  </div>
+                </template>
+                <template id="asu-key-template">
+                  <div class="asu-option-row asu-key-row">
+                    <label>
+                      <span class="tr-repository-key">Signing public key</span>
+                      <textarea
+                        rows="4"
+                        aria-describedby="asu-keys-help"
+                        spellcheck="false"
+                        autocapitalize="off"
+                      ></textarea>
+                    </label>
+                    <button
+                      type="button"
+                      class="asu-option-button tr-remove-key"
+                    >
+                      Remove public key
+                    </button>
+                  </div>
+                </template>
                 <a href="#" id="asu-request-build" class="custom-link">
                   <span></span
                   ><span class="tr-request-build">REQUEST BUILD</span>
@@ -216,7 +410,10 @@
 
         <div id="footer">
           <span
-            ><a href="https://downloads.openwrt.org" class="tr-server-link"
+            ><a
+              id="all-downloads"
+              href="https://downloads.openwrt.org"
+              class="tr-server-link"
               >All Downloads</a
             ></span
           >
