@@ -39,7 +39,7 @@ def release_notes(root, tag, previous="", upstream_ref="main", develop_ref="deve
         group = GROUPS.get(kind.group(1), "其他调整") if kind else "其他调整"
         subject = re.sub(r"([\\`*_{}\[\]<>])", r"\\\1", subject)
         groups.setdefault(group, []).append(f"- {subject} (`{sha}`)")
-    lines = [f"# 固件选择器 {tag}", "", f"源码提交：`{target}`", "",
+    lines = [f"# Wrt Selector {tag}", "", f"源码提交：`{target}`", "",
              f"排除的上游镜像提交：`{upstream}`", "",
              "发布包是可部署的静态选择器网站，解压到 Web 根目录即可使用。",
              "它不包含路由器固件，也不会自动提交 ASU 构建。", ""]

@@ -4,10 +4,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title class="tr-selector-title">
-      OpenWrt / ImmortalWrt Firmware Selector
-    </title>
-    <link rel="icon" href="favicon.ico" />
+    <title>Wrt Selector</title>
+    <meta
+      name="description"
+      content="Select and customize OpenWrt and ImmortalWrt firmware with multiple build services."
+    />
+    <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" href="logo.svg" type="image/svg+xml" sizes="any" />
+    <link rel="mask-icon" href="logo-monochrome.svg" />
     <link rel="stylesheet" href="index.css" />
     <script src="config.js"></script>
     <script type="module" src="js/main.js"></script>
@@ -17,10 +21,12 @@
     <header>
       <div>
         <a href="./" class="selector-brand">
-          <span>OpenWrt · ImmortalWrt</span>
-          <small class="tr-selector-name">Firmware Selector</small>
+          <img src="logo.svg" width="40" height="40" alt="" />
+          <span class="selector-brand-text">
+            <span>Wrt Selector</span>
+            <small>OpenWrt · ImmortalWrt</small>
+          </span>
         </a>
-        <div style="flex-grow: 1"></div>
         <div class="language-control">
           <select id="languages-select" aria-label="Language selection">
             <option value="ar">العربية (Arabic)</option>
@@ -436,15 +442,15 @@
         |
         <span
           ><a
-            href="https://forum.openwrt.org/t/the-openwrt-firmware-selector/81721"
+            href="https://github.com/ADDGM/wrt-selector/issues"
             class="tr-feedback-link"
             >Feedback</a
           ></span
         >
         |
         <span
-          ><a href="https://github.com/openwrt/firmware-selector-openwrt-org/"
-            >OFS <span id="ofs-version">0.0.0</span></a
+          ><a href="https://github.com/ADDGM/wrt-selector"
+            >Wrt Selector <span id="ofs-version">0.0.0</span></a
           ></span
         >
       </div>

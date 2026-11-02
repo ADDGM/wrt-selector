@@ -1,6 +1,28 @@
-# Changelog
+# Wrt Selector changelog
 
-Short summaries of recent changes for people who don't use `git shortlog`
+[简体中文](CHANGELOG.zh-CN.md) · [Home](README.md)
+
+Personal releases use `site-v*`. The older `v*` entries below belong to the
+OpenWrt upstream project, not Wrt Selector's personal release series.
+
+## site-v1.0.0 — version overview
+
+Changes for the first personal version are listed below. Check
+[GitHub Releases](https://github.com/ADDGM/wrt-selector/releases) for publication status and downloadable assets.
+
+- Select OpenWrt or ImmortalWrt, with official services and ImmortalWrt KyaruCloud.
+- Customize packages, root filesystem size, feeds and signing public keys.
+- Keep separate first-boot script drafts for each distribution in the current page.
+- Use shared Chinese example comments for Simplified and Traditional Chinese interfaces, with English for other languages; preserve edited drafts when the language changes.
+- Extend the ImmortalWrt example with optional language/theme/timezone settings, checked network changes and explicit failure results; leave third-party feeds to deployment-specific configuration.
+- Refresh the responsive interface and preserve service-bound build requests and selection links.
+- Add checked website ZIPs, develop-only Pages deployment and Pages/Release Telegram summaries.
+- Adopt the Wrt Selector name, an independent W-and-routing-node icon, and paired English/Simplified Chinese documentation.
+
+## Upstream history
+
+The original upstream release notes follow in their original language. They are
+retained for provenance and may describe behavior before this fork's extensions.
 
 ## v5.1.0 - 2026-05-31
 

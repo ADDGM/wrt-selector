@@ -137,14 +137,23 @@ header > div {
 
 .selector-brand {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-inline-end: auto;
   text-decoration: none;
   color: var(--text);
-  border-left: 4px solid var(--accent);
-  padding-left: 12px;
   line-height: 1.4;
   font-size: 1rem;
   font-weight: 650;
+}
+
+.selector-brand img {
+  flex: 0 0 auto;
+}
+
+.selector-brand-text {
+  display: flex;
+  flex-direction: column;
 }
 
 .selector-brand small {
@@ -684,6 +693,12 @@ summary {
 
   .selector-brand {
     font-size: 0.8125rem;
+    gap: 8px;
+  }
+
+  .selector-brand img {
+    width: 32px;
+    height: 32px;
   }
 
   #languages-button {

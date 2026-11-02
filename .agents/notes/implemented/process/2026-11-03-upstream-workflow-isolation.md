@@ -6,7 +6,7 @@ Status: implemented
 
 用户明确 main 用于同步上游，develop 承载个人二次开发。初始工作流适配按 main/develop 都是项目分支设计，没有覆盖纯上游镜像场景。只修改 develop 的触发规则，不能控制 main 上的旧测试及自动 Pages 工作流；固定历史基线也不能排除未来新增的英文上游提交。
 
-本地 fetch/merge 不会产生 GitHub push 事件；此处处理同步结果推送到用户仓库后的执行。用户仓库确认为 ADDGM/firmware-selector-openwrt-org，父仓库是 OpenWrt 官方项目。
+本地 fetch/merge 不会产生 GitHub push 事件；此处处理同步结果推送到用户仓库后的执行。用户仓库原名为 ADDGM/firmware-selector-openwrt-org，现采用 [Wrt Selector 命名](2026-11-03-project-identity.md)，目标为 ADDGM/wrt-selector；父仓库仍是 OpenWrt 官方项目。
 
 ## Decision
 
