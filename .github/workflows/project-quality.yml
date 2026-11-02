@@ -1,8 +1,6 @@
 name: 质量与提交规范
 
 on:
-  push:
-    branches: [develop]
   pull_request:
     branches: [develop]
   workflow_dispatch:

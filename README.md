@@ -207,17 +207,19 @@ python -B -m unittest discover -s tests/tooling -p "test_*.py" -v
 
 | 工作流 | 触发方式 | 检查或产物 |
 | --- | --- | --- |
-| 测试与站点打包（`project-ci.yml`） | develop 推送、目标为 develop 的 PR、手动 | Node 22/24 检查与单测、Python 工具测试、站内 HTML 链接、Firefox 回归；通过后上传 `website-package` |
-| 质量与提交规范（`project-quality.yml`） | develop 推送、目标为 develop 的 PR、手动 | 中文提交、actionlint、Semgrep；安全发现或扫描错误使任务失败，SARIF 保存在 Actions 产物中 |
+| 测试与站点打包（`project-ci.yml`） | 目标为 develop 的 PR、手动，或由 Pages/Release 调用 | Node 22/24 检查与单测、Python 工具测试、站内 HTML 链接、Firefox 回归；通过后上传 `website-package` |
+| 质量与提交规范（`project-quality.yml`） | 目标为 develop 的 PR、手动，或由 Pages/Release 调用 | 中文提交、actionlint、Semgrep；安全发现或扫描错误使任务失败，SARIF 保存在 Actions 产物中 |
 | 发布站点 ZIP（`project-release.yml`） | 推送 `site-v*` 标签，或手动输入已存在个人标签 | 复用全部测试和质量检查，发布 ZIP、SHA256、构建信息与中文 Release 说明 |
-| 手动部署 GitHub Pages（`project-pages.yml`） | 仅手动选择 develop | 校验个人源码、复用全部检查，然后部署同一站点包；其他分支或标签不会部署 |
+| 检查并部署 GitHub Pages（`project-pages.yml`） | develop 推送，或手动选择 develop | 校验个人源码，对同一提交执行全部检查，然后部署同一次运行的站点包；其他分支或标签不会部署 |
 
 本地提交检查默认读取 `main`；镜像引用不存在时明确报错，不静默跳过检查。
 CI 使用自己的远端镜像 `origin/main`。有需要时可通过
 `--upstream-ref <镜像引用或提交SHA>` 指定快照。PR 的工具来自合并结果，
 提交范围仍使用 PR 的 base/head，因此纯上游 `main → develop` 也能运行个人检查。
 
-日常 CI 不发布 Release，也不更新 Pages。`test.yml`、`static-main.yml`、
+`develop` 推送由 Pages 工作流统一运行测试和质量检查，通过后自动更新网站；
+两份可复用检查工作流不再单独监听推送，避免重复运行。PR 只检查，不部署；
+Release 仍由个人标签或手动发布触发。`test.yml`、`static-main.yml`、
 `static-stable.yml` 保留上游内容，必须在自己的仓库 Actions 页面禁用；
 2026-11-03 已核实本仓库三者均为 `disabled_manually`。上游以后新增工作流时，
 需再次检查启用状态。个人工作流使用独立文件名，避免禁用旧流程时一同停用。
@@ -268,8 +270,12 @@ ZIP 解压后根目录直接包含 `index.html`，可部署到任意静态 Web �
 
 Pages 首次使用时，在 **Settings → Pages → Build and deployment → Source**
 选择 **GitHub Actions**，并确认 `github-pages` 环境允许 `develop` 部署。
-然后运行「手动部署 GitHub Pages」，选择 `develop`；推送 main/develop
-不会自动部署。若使用自定义域名，把 `CNAME` 纳入 `www/` 的已跟踪文件。
+启用后推送 `develop` 即会运行「检查并部署 GitHub Pages」，全部检查通过后
+自动更新；也可手动选择 `develop` 部署。推送 `main`、PR 和其他分支不会部署。
+同分支 Pages 运行串行，保留正在运行的任务，等待中的旧任务会被新任务替换。
+检查失败时保留当前已发布页面。首次启用及更改环境保护规则后，应核对 Actions
+部署结果与网站内容；仅修改本地工作流不会使线上自动更新生效。
+若使用自定义域名，把 `CNAME` 纳入 `www/` 的已跟踪文件。
 Release 和 Pages 均不会自动发送 ASU 固件构建请求。
 
 ## Translations

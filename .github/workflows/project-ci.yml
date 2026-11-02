@@ -1,8 +1,6 @@
 name: 测试与站点打包
 
 on:
-  push:
-    branches: [develop]
   pull_request:
     branches: [develop]
   workflow_dispatch:

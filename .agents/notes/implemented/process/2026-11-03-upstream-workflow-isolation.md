@@ -14,7 +14,7 @@ Status: implemented
 
 个人工作流使用 project-ci.yml、project-quality.yml、project-release.yml、project-pages.yml 独立路径，复用引用同步更名。上游 test.yml、static-main.yml、static-stable.yml 保留上游内容，减少后续同步的文件差异；用户已在自己的仓库禁用三者，2026-11-03 API 实测均为 disabled_manually。个人 actionlint/Semgrep 只检查 project-*.yml 中的工作流，已停用的上游文件不承担个人质量门禁。不在镜像 main 上添加禁用提交，也不依赖只修改 name 显示名称。
 
-个人日常检查只自动响应 develop push 与目标分支为 develop 的 PR；Pages 只手动运行且只接受 develop。PR 的 branches 过滤目标分支，因此 main 向 develop 提交上游集成 PR 仍执行测试。镜像分支负责保留上游，集成到个人版本后必须验证兼容性。
+个人日常检查只自动响应 develop push 与目标分支为 develop 的 PR；Pages 只接受 develop。原先两份检查独立监听 push、Pages 仅手动的触发策略由[Pages 自动部署](2026-11-03-pages-auto-deploy.md)部分取代：develop 推送统一由 Pages 调用检查并部署，PR 仍直接运行两份检查。PR 的 branches 过滤目标分支，因此 main 向 develop 提交上游集成 PR 仍执行测试。镜像分支负责保留上游，集成到个人版本后必须验证兼容性。
 
 PR 检查工具从合并结果读取，提交范围显式传入 base/head。原提交任务直接检出 PR head，纯上游 main 向 develop 的 PR 会找不到个人新增的 scripts/check_commits.py；检出合并结果保留个人工具，又不把合并目标分支的其他提交当作本次 PR 新增内容。
 
@@ -24,7 +24,7 @@ PR 检查工具从合并结果读取，提交范围显式传入 base/head。原�
 
 ## Related notes
 
-活跃笔记审计：[项目工作流](2026-10-31-project-workflows.md)部分重叠并互链，本篇接管分支触发、工作流身份、个人标签和上游提交排除策略，ZIP/Release/手动 Pages 及统一验证继续适用；[默认检查](2026-10-30-default-checks.md)同步触发范围，保留其风格决定。功能笔记无关，没有应归档或删除的过时提案。
+活跃笔记审计：[项目工作流](2026-10-31-project-workflows.md)部分重叠并互链，本篇接管工作流身份、个人标签和上游提交排除策略，ZIP/Release 及统一验证继续适用；[Pages 自动部署](2026-11-03-pages-auto-deploy.md)接管 develop 推送与 Pages 的触发编排，保留本篇镜像隔离约束；[默认检查](2026-10-30-default-checks.md)保留其风格决定。功能笔记无关，没有应归档或删除的过时提案。
 
 ## Alternatives considered
 

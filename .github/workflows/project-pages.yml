@@ -1,13 +1,15 @@
-name: 手动部署 GitHub Pages
+name: 检查并部署 GitHub Pages
 
 on:
+  push:
+    branches: [develop]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
