@@ -1,0 +1,130 @@
+name: 发布站点 ZIP
+
+on:
+  push:
+    tags: ["site-v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 已存在的个人标签（site-vX.Y.Z、site-vX.Y.Z-beta.N 或 site-vX.Y.Z-rc.N）
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: 校验标签并锁定源码
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.source.outputs.tag }}
+      sha: ${{ steps.source.outputs.sha }}
+      upstream: ${{ steps.source.outputs.upstream }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+      - name: 解析已存在的版本标签
+        id: source
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          sys.path.insert(0, "scripts")
+          from workflow_utils import ROOT, require_project_source, resolve_ref, upstream_snapshot, validate_tag
+          tag = validate_tag(os.environ["RELEASE_TAG"])
+          sha = resolve_ref(ROOT, "refs/tags/" + tag)
+          upstream = upstream_snapshot(ROOT, "refs/remotes/origin/main")
+          require_project_source(ROOT, sha, upstream, "refs/remotes/origin/develop")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"tag={tag}\nsha={sha}\nupstream={upstream}\n")
+          PY
+
+  quality:
+    needs: resolve
+    uses: ./.github/workflows/project-quality.yml
+    with:
+      source-ref: ${{ needs.resolve.outputs.sha }}
+      upstream-ref: ${{ needs.resolve.outputs.upstream }}
+
+  test:
+    needs: resolve
+    uses: ./.github/workflows/project-ci.yml
+    with:
+      source-ref: ${{ needs.resolve.outputs.sha }}
+      version: ${{ needs.resolve.outputs.tag }}
+
+  publish:
+    name: 上传 ZIP 并发布中文说明
+    needs: [resolve, quality, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+      RELEASE_TITLE: 固件选择器 ${{ needs.resolve.outputs.tag }}
+      RELEASE_EXISTS_MESSAGE: 该标签已经有 Release；请检查现有发布或使用新版本标签。
+      SOURCE_SHA: ${{ needs.resolve.outputs.sha }}
+      UPSTREAM_SHA: ${{ needs.resolve.outputs.upstream }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: website-package
+          path: build/
+      - name: 校验产物与生成中文说明
+        shell: bash
+        run: |
+          (cd build && sha256sum --check -- *.zip.sha256)
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          info = json.loads(Path("build/build-info.json").read_text())
+          assert info["source_sha"] == os.environ["SOURCE_SHA"]
+          assert info["version"] == os.environ["RELEASE_TAG"]
+          assert not info["source_dirty"]
+          PY
+          python scripts/release_notes.py --tag "$RELEASE_TAG" \
+            --upstream-ref "$UPSTREAM_SHA" --develop-ref refs/remotes/origin/develop
+      - name: 创建 Release（已有发布不覆盖）
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "$RELEASE_EXISTS_MESSAGE" >&2
+            exit 1
+          fi
+          args=()
+          if [[ "$RELEASE_TAG" == *-beta.* || "$RELEASE_TAG" == *-rc.* ]]; then
+            args+=(--prerelease --latest=false)
+          fi
+          gh release create "$RELEASE_TAG" \
+            "build/firmware-selector-${RELEASE_TAG}.zip" \
+            "build/firmware-selector-${RELEASE_TAG}.zip.sha256" \
+            build/build-info.json \
+            --verify-tag --target "$SOURCE_SHA" \
+            --title "$RELEASE_TITLE" \
+            --notes-file build/release-notes.zh-CN.md "${args[@]}"

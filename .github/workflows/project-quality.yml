@@ -1,0 +1,88 @@
+name: 质量与提交规范
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      source-ref:
+        type: string
+        default: ""
+      upstream-ref:
+        type: string
+        default: refs/remotes/origin/main
+
+permissions:
+  contents: read
+
+jobs:
+  commits:
+    name: 中文提交标题
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source-ref || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+      - name: 校验基线后的提交
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ inputs.source-ref || github.event.pull_request.head.sha || github.sha }}
+          UPSTREAM_REF: ${{ inputs.upstream-ref || 'refs/remotes/origin/main' }}
+        run: python scripts/check_commits.py --base "$BASE_SHA" --head "$HEAD_SHA" --upstream-ref "$UPSTREAM_REF"
+
+  actionlint:
+    name: GitHub Actions 配置
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source-ref || github.sha }}
+          persist-credentials: false
+      - name: 校验并安装 actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl --fail --silent --show-error --location \
+            --output "$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum --check -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+      - name: 检查所有工作流
+        run: '"$RUNNER_TEMP/actionlint" -color .github/workflows/project-*.yml'
+
+  semgrep:
+    name: Semgrep 安全扫描
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: semgrep/semgrep:1.183.0@sha256:2e45517a85e13a9cca14a2a00df6bb48affd66b8ebfae1b0991cd57578362fb0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source-ref || github.sha }}
+          persist-credentials: false
+      - name: 扫描网站、工具与工作流
+        run: >-
+          semgrep scan --config p/javascript --config p/python --config p/github-actions
+          --error --strict --metrics off --sarif --output semgrep.sarif
+          www scripts .github/workflows/project-*.yml
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: semgrep-results
+          path: semgrep.sarif
+          retention-days: 14

@@ -1,0 +1,83 @@
+name: 手动部署 GitHub Pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  source:
+    name: 核验个人开发版本
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      upstream: ${{ steps.source.outputs.upstream }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+      - name: 固定上游排除范围
+        id: source
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          sys.path.insert(0, "scripts")
+          from workflow_utils import ROOT, require_project_source, resolve_ref, upstream_snapshot
+          upstream = upstream_snapshot(ROOT, "refs/remotes/origin/main")
+          require_project_source(ROOT, resolve_ref(ROOT, "HEAD"), upstream, "refs/remotes/origin/develop")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"upstream={upstream}\n")
+          PY
+
+  quality:
+    needs: source
+    uses: ./.github/workflows/project-quality.yml
+    with:
+      source-ref: ${{ github.sha }}
+      upstream-ref: ${{ needs.source.outputs.upstream }}
+
+  test:
+    needs: source
+    uses: ./.github/workflows/project-ci.yml
+    with:
+      source-ref: ${{ github.sha }}
+
+  deploy:
+    name: 部署已验证站点
+    needs: [quality, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: website-package
+          path: package/
+      - name: 校验并展开站点包
+        working-directory: package
+        run: |
+          sha256sum --check -- *.zip.sha256
+          unzip -q 'firmware-selector-*.zip' -d ../site
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: site/
+      - name: 部署 Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

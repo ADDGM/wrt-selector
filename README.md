@@ -167,14 +167,14 @@ Browser tests require Python 3.11+ and Firefox installed through Playwright.
 With a Python virtual environment activated, install the test dependencies once:
 
 ```
-python -m pip install pytest-playwright pytest-simplehttpserver
+python -m pip install -r tests/requirements.txt
 python -m playwright install firefox
 ```
 
 Run the browser suite from the repository root, with port 8000 available:
 
 ```
-python -m pytest tests --simplehttpserver-directory ./
+python -m pytest tests/test_spa.py tests/test_services.py --simplehttpserver-directory ./
 ```
 
 The suite covers the legacy catalog, all three build services, root filesystem
@@ -182,7 +182,95 @@ limits, custom feeds and public keys, script drafts, catalog retries and device
 selection races. It loads the real local page, deployment config and script
 templates, while intercepting remote metadata and ASU requests with fixed test
 responses. It does not submit real firmware builds or verify the availability of
-the live services. The existing CI workflow discovers these tests automatically.
+the live services. CI runs this same browser suite and retains JUnit results and
+console logs. These tests create browser contexts directly, so pytest-playwright's
+automatic tracing option does not capture them.
+
+## Git 与发布工作流
+
+`main` 只保留上游镜像，个人开发与上游集成在 `develop` 进行。
+本地 `upstream` 指向 OpenWrt 官方仓库，`origin` 指向自己的仓库。
+自己的 GitHub 仓库默认分支应设为 `develop`；首次使用需先推送该分支。
+同步时先更新并推送镜像 `main`，再把它合入 `develop`，不要在镜像分支提交个人改动。
+
+提交标题使用 Conventional Commits 前缀与中文说明，例如
+`fix(selector): 修复切换服务后的设备状态`、`ci: 增加站点发布检查`。
+scope 可省略，标题最长 72 个字符。以下命令只检查个人提交：排除
+`.github/commit-policy-baseline.txt` 的初始上游历史，以及当前镜像 `main`
+可以到达的提交，因此以后同步的上游英文提交也不强制中文。
+真实合并提交与 Dependabot、Renovate、GitHub Actions 机器人提交不强制中文。
+
+```sh
+python scripts/check_commits.py
+python -B -m unittest discover -s tests/tooling -p "test_*.py" -v
+```
+
+| 工作流 | 触发方式 | 检查或产物 |
+| --- | --- | --- |
+| 测试与站点打包（`project-ci.yml`） | develop 推送、目标为 develop 的 PR、手动 | Node 22/24 检查与单测、Python 工具测试、站内 HTML 链接、Firefox 回归；通过后上传 `website-package` |
+| 质量与提交规范（`project-quality.yml`） | develop 推送、目标为 develop 的 PR、手动 | 中文提交、actionlint、Semgrep；安全发现或扫描错误使任务失败，SARIF 保存在 Actions 产物中 |
+| 发布站点 ZIP（`project-release.yml`） | 推送 `site-v*` 标签，或手动输入已存在个人标签 | 复用全部测试和质量检查，发布 ZIP、SHA256、构建信息与中文 Release 说明 |
+| 手动部署 GitHub Pages（`project-pages.yml`） | 仅手动选择 develop | 校验个人源码、复用全部检查，然后部署同一站点包；其他分支或标签不会部署 |
+
+本地提交检查默认读取 `main`；镜像引用不存在时明确报错，不静默跳过检查。
+CI 使用自己的远端镜像 `origin/main`。有需要时可通过
+`--upstream-ref <镜像引用或提交SHA>` 指定快照。PR 的工具来自合并结果，
+提交范围仍使用 PR 的 base/head，因此纯上游 `main → develop` 也能运行个人检查。
+
+日常 CI 不发布 Release，也不更新 Pages。`test.yml`、`static-main.yml`、
+`static-stable.yml` 保留上游内容，必须在自己的仓库 Actions 页面禁用；
+2026-11-03 已核实本仓库三者均为 `disabled_manually`。上游以后新增工作流时，
+需再次检查启用状态。个人工作流使用独立文件名，避免禁用旧流程时一同停用。
+个人质量检查只扫描 `project-*.yml` 中的工作流，不要求修改已停用的上游文件。
+个人发布不使用 `RSYNC_USER` 或 `RSYNC_PASSWORD`。
+工作流依赖提交中的 `yarn.lock`，使用 `yarn install --frozen-lockfile`。
+外部网站的可用性不作为 HTML 检查门禁；Semgrep 使用远端规则集，规则变化
+或规则服务不可用可能要求维护者排查。SARIF 上传不需要 Code Scanning 写权限，
+因此 fork PR 也能保留扫描结果。
+
+### 本地站点包
+
+需要 Python 3.11+ 和 Git，在仓库根目录运行：
+
+```sh
+python scripts/build_site.py
+```
+
+产物为 `build/site/`、`build/firmware-selector-<版本>.zip`、同名
+`.zip.sha256` 与 `build/build-info.json`。版本默认取 `site-v*` 个人标签描述，
+无个人标签时回退为提交短 SHA；也可用 `--version site-v1.0.0` 指定站点版本。
+ZIP 解压后根目录直接包含 `index.html`，可部署到任意静态 Web 服务器。
+**这是选择器网站包，不包含路由器固件。**
+
+打包只包含 Git 索引中已跟踪的 `www/` 文件、许可证及构建信息，保留
+`config.js` 中的双系统和服务配置；版本替换仅发生在产物中。
+自定义 `device_packages.json` 等文件需要先纳入 Git 才会进入包。
+本地已跟踪文件的修改会进入预览包，并由 `source_dirty` 标记；
+正式 Release 必须使用标签对应的干净站点源码。相同源码、版本与构建环境
+会生成相同 ZIP。再次构建会清理本工具生成的 `build/site/`，不要在其中
+保存手工修改；用完的本地包与测试环境应清理。
+
+### GitHub Release 与 Pages
+
+先把工作流及相关脚本提交到自己的 GitHub 仓库。手动工作流需要先出现在
+默认分支上。Release 接受 `site-vX.Y.Z`、`site-vX.Y.Z-beta.N` 或 `site-vX.Y.Z-rc.N`；
+预发布标签会标记为 prerelease，不作为 latest。标签必须包含本项目的
+工作流与脚本，属于已合入 `develop` 的个人提交，且不能是纯上游提交。
+上游 `v*` 标签不用于个人发布；只推送需要发布的具体个人标签，不批量推送全部标签。
+
+推送符合格式的标签即可自动验证与发布；Actions 的「发布站点 ZIP」也可
+对已存在标签手动执行。中文说明按提交类型分组，默认从上一个可达的
+`site-v` 版本标签开始。发布流程固定同一上游镜像 SHA，提交检查和更新说明
+都排除该快照的上游历史；说明中记录这个 SHA，便于追溯范围。
+已存在 Release 时任务明确失败，不覆盖资产。发布中断后先检查已有 Release，
+再决定如何处理；不要移动已经发布的标签。发布只使用仓库的 `GITHUB_TOKEN`，
+写权限限定于发布任务。
+
+Pages 首次使用时，在 **Settings → Pages → Build and deployment → Source**
+选择 **GitHub Actions**，并确认 `github-pages` 环境允许 `develop` 部署。
+然后运行「手动部署 GitHub Pages」，选择 `develop`；推送 main/develop
+不会自动部署。若使用自定义域名，把 `CNAME` 纳入 `www/` 的已跟踪文件。
+Release 和 Pages 均不会自动发送 ASU 固件构建请求。
 
 ## Translations
 

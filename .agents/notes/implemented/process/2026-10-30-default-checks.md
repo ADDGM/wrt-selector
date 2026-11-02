@@ -16,11 +16,13 @@ Status: implemented
 - `prettier.config.cjs` 显式记录原 Prettier 2 默认风格：分号、双引号、2 空格、80 列、ES5 尾逗号和 LF。原有翻译 JSON 排除规则继续适用。
 - `.gitattributes` 只对 `www/` 下的 JavaScript、CSS、HTML 指定 `text eol=lf`，使 Windows 检出结果与格式检查一致。图片等其他资源不匹配这些规则。
 - `package.json` 提供 `lint`、`format:check` 与组合 `check`，后者依次运行 ESLint、Prettier 和现有 JavaScript 单测。README 给出不需要环境变量或替代配置参数的日常命令。
-- CI 使用同一组检查脚本，并将 ESLint、Prettier、Git 换行配置、package.json 和 yarn.lock 纳入触发路径。单测覆盖率与 Firefox 测试继续使用既有步骤。
+- CI 使用同一组检查脚本，develop 推送、目标为 develop 的 PR 与手动运行均覆盖这些配置。单测覆盖率与 Firefox 回归继续保留，打包策略见[项目工作流](2026-10-31-project-workflows.md)，分支与上游隔离见[上游工作流隔离](2026-11-03-upstream-workflow-isolation.md)。
 
 ## Related notes
 
 活跃笔记审计得到三篇部分重叠记录：[高级构建选项](../feature/2026-10-30-asu-build-options.md)、[服务选择](../feature/2026-10-30-asu-service-selection.md)、[脚本草稿](../feature/2026-10-30-uci-defaults-drafts.md)。本篇接管其中检查配置与格式故障的当前结论，三篇保留各自功能决定并互链；没有需删除或归档的提案。
+
+[项目工作流](2026-10-31-project-workflows.md)与本篇部分重叠：本篇保留默认风格、检查入口与换行决定，新篇持有 CI/Release/Pages 的执行边界。
 
 ## Alternatives considered
 

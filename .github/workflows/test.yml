@@ -6,21 +6,11 @@ on:
       - ".github/workflows/*"
       - "www/**"
       - "tests/**"
-      - ".eslintrc*"
-      - ".gitattributes"
-      - "*prettier*"
-      - "package.json"
-      - "yarn.lock"
   pull_request:
     paths:
       - ".github/workflows/*"
       - "www/**"
       - "tests/**"
-      - ".eslintrc*"
-      - ".gitattributes"
-      - "*prettier*"
-      - "package.json"
-      - "yarn.lock"
 
 jobs:
   Test:
@@ -39,8 +29,8 @@ jobs:
 
       - run: |
           yarn install
-          yarn run format:check
-          yarn run lint
+          yarn prettier --check www
+          yarn eslint www/
 
       - name: Run unit tests with coverage
         run: |
