@@ -14,6 +14,8 @@ Status: implemented
 
 测试覆盖 Node 22/24 的原有检查入口、Python 工具、HTML 站内链接与 Firefox 页面回归。HTML 检查关闭外链检查，避免上游网站临时故障阻断静态包发布。Firefox 沿用真实页面与模拟元数据/ASU 的已有用例，只安装 Firefox，保存 JUnit 和控制台日志。用例自行创建 context，因此不声称 pytest 的自动 tracing 能捕获这些 context。
 
+HTML 标题按页面 h1、构建及下载区 h2、自定义选项 h3 连续分级；CSS 与下载标题的脚本选择器随标签同步。固件源与构建服务链接沿用页面已有的 `href="#"` 占位方式，脚本在显示字段前写入真实地址。HTML 检查保留缺失 href 检测，不为动态内容放宽全站规则；真实链接与服务切换由 Firefox 回归检查。
+
 中文提交检查保留 `.github/commit-policy-baseline.txt` 的初始上游边界，未来同步的上游范围由[上游工作流隔离](2026-11-03-upstream-workflow-isolation.md)接管。标题采用 `type(scope): 中文说明`，scope 可省略，最长 72 字符；已知依赖机器人与真实 merge commit 豁免。PR 使用 base/head，push 使用 before/head，首次推送或本地默认检查使用完整二次开发范围。旧的上游英文历史保持原样。
 
 质量工作流使用 actionlint 与 Semgrep；安全发现及扫描错误都阻断发布。个人工作流的外部 Action 固定到核实过的完整 SHA，actionlint 下载验证 SHA256，Semgrep 固定镜像版本与摘要。SARIF 作为普通 Actions 产物保存，不要求 fork PR 提供 `security-events: write`。规则集仍来自 Semgrep Registry，因此规则变化和服务故障需要维护者排查。内嵌 Bash 的中文文案通过环境变量提供，避免扫描器解析 Unicode 字符串时出现内部错误。

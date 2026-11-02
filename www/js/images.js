@@ -189,13 +189,13 @@ export function updateImages(version, mobj, context) {
       mobj.image_folder = `${baseUrl}/targets/${mobj.target}`;
     }
 
-    const h3 = $("#downloads1 h3");
+    const heading = $("#downloads1 h2");
     if ("build_cmd" in mobj) {
-      h3.classList.remove("tr-downloads");
-      h3.classList.add("tr-custom-downloads");
+      heading.classList.remove("tr-downloads");
+      heading.classList.add("tr-custom-downloads");
     } else {
-      h3.classList.remove("tr-custom-downloads");
-      h3.classList.add("tr-downloads");
+      heading.classList.remove("tr-custom-downloads");
+      heading.classList.add("tr-downloads");
     }
 
     translate();

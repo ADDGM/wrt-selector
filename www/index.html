@@ -103,7 +103,7 @@
             <select id="firmware-distribution"></select>
             <p class="asu-option-help">
               <span class="tr-firmware-source">Firmware source:</span>
-              <a id="firmware-source-url"></a>
+              <a id="firmware-source-url" href="#"></a>
             </p>
           </div>
           <div id="asu-service-field" class="asu-option-field hide">
@@ -114,7 +114,7 @@
               id="asu-service"
               aria-describedby="asu-service-help"
             ></select>
-            <p class="asu-option-help"><a id="asu-service-url"></a></p>
+            <p class="asu-option-help"><a id="asu-service-url" href="#"></a></p>
           </div>
           <p id="asu-service-help" class="asu-option-help tr-asu-service-help">
             Changing distribution or service reloads devices, versions and
@@ -146,13 +146,13 @@
       </div>
 
       <div id="notfound" class="hide">
-        <h3 class="tr-not-found">No model found!</h3>
+        <h2 class="tr-not-found">No model found!</h2>
       </div>
 
       <div id="images" class="hide">
         <!-- static information about the selected build -->
         <div class="build-details">
-          <h3 id="build-title" class="tr-version-build">About this build</h3>
+          <h2 id="build-title" class="tr-version-build">About this build</h2>
           <div class="row">
             <div class="col1 tr-firmware-distribution">
               Firmware distribution
@@ -218,9 +218,9 @@
                 </div>
               </div>
               <div>
-                <h4 class="tr-packages" id="asu-packages-label">
+                <h3 class="tr-packages" id="asu-packages-label">
                   Installed Packages
-                </h4>
+                </h3>
                 <textarea
                   rows="10"
                   id="asu-packages"
@@ -230,9 +230,9 @@
                   autocapitalize="off"
                 ></textarea>
               </div>
-              <h4 class="tr-defaults" id="uci-defaults-label">
+              <h3 class="tr-defaults" id="uci-defaults-label">
                 Script to run on first boot (uci-defaults)
-              </h4>
+              </h3>
               <p class="asu-option-help">
                 <span class="tr-uci-draft">Script draft:</span>
                 <strong id="uci-defaults-distribution"></strong>
@@ -294,7 +294,7 @@
                     <span id="asu-rootfs-range">1–1024</span>
                   </p>
                 </div>
-                <h4 class="tr-repositories">Custom software feeds</h4>
+                <h3 class="tr-repositories">Custom software feeds</h3>
                 <p class="asu-option-help tr-repositories-help">
                   Enter a unique name and an HTTP(S) feed directory URL. Version
                   and platform placeholders are supported.
@@ -338,7 +338,7 @@
                 >
                   Add feed
                 </button>
-                <h4 class="tr-repository-keys">Feed signing public keys</h4>
+                <h3 class="tr-repository-keys">Feed signing public keys</h3>
                 <p
                   id="asu-keys-help"
                   class="asu-option-help tr-repository-keys-help"
@@ -411,13 +411,13 @@
         </div>
 
         <div id="downloads1">
-          <h3 class="tr-downloads">Download an image</h3>
+          <h2 class="tr-downloads">Download an image</h2>
           <!-- table of rows of download button and help text -->
           <table id="download-table1"></table>
         </div>
 
         <div id="downloads2" style="display: none">
-          <h3 class="tr-downloads">Download an image</h3>
+          <h2 class="tr-downloads">Download an image</h2>
           <!-- list of downloads buttons, only one help text is displayed -->
           <div id="download-links2"></div>
           <div id="download-extras2"></div>
