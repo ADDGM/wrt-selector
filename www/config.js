@@ -55,10 +55,16 @@ var config = {
     },
   ],
   asu_extra_packages: ["luci", "luci-app-attendedsysupgrade"],
-  // Example scripts are selected by distribution, not by build server.
+  // Example scripts follow the distribution and UI language (English fallback).
   uci_defaults_templates: {
-    OpenWrt: "uci-defaults/setup.sh",
-    ImmortalWrt: "uci-defaults/immortalwrt.sh",
+    OpenWrt: {
+      en: "uci-defaults/setup.sh",
+      "zh-cn": "uci-defaults/setup.zh-cn.sh",
+    },
+    ImmortalWrt: {
+      en: "uci-defaults/immortalwrt.sh",
+      "zh-cn": "uci-defaults/immortalwrt.zh-cn.sh",
+    },
   },
   // Initial root filesystem size in MiB (optional, within the service's limit)
   // asu_rootfs_size_mb: 256,

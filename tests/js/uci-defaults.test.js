@@ -1,6 +1,8 @@
 import { mockElement } from "./setup.js";
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import { setupUciDefaults } from "../../www/js/uci-defaults.js";
 
 const originalQuery = document._qsImpl;
@@ -14,6 +16,13 @@ afterEach(() => {
 function mount(config = {}, initial = "") {
   let service = { distribution: "OpenWrt", id: "openwrt" };
   let onInput;
+  let onLanguageChange;
+  const language = mockElement({
+    value: "en",
+    addEventListener: (name, callback) => {
+      if (name === "change") onLanguageChange = callback;
+    },
+  });
   const input = mockElement({
     value: initial,
     addEventListener: (name, callback) => {
@@ -29,6 +38,7 @@ function mount(config = {}, initial = "") {
       "#uci-defaults-template": button,
       "#uci-defaults-distribution": label,
       "#alert": alert,
+      "#languages-select": language,
     }[selector]);
   const sync = setupUciDefaults(config, () => service);
   return {
@@ -36,6 +46,11 @@ function mount(config = {}, initial = "") {
     button,
     label,
     alert,
+    language,
+    selectLanguage(value) {
+      language.value = value;
+      onLanguageChange();
+    },
     edit(value) {
       input.value = value;
       onInput();
@@ -192,5 +207,159 @@ describe("distribution script drafts", () => {
     await ui.button.onclick();
     assert.equal(requested, "legacy.sh");
     assert.equal(ui.input.value, "# legacy");
+  });
+});
+
+const localizedConfig = {
+  uci_defaults_templates: {
+    OpenWrt: { en: "open.sh", "zh-cn": "open.zh-cn.sh" },
+    ImmortalWrt: { en: "immortal.sh", "zh-cn": "immortal.zh-cn.sh" },
+  },
+};
+
+describe("localized script examples", () => {
+  it("selects shared Chinese comments for zh-cn and zh-tw, and English for other languages", async () => {
+    const urls = [];
+    globalThis.fetch = async (url) => {
+      urls.push(url);
+      return response(`# ${url}\necho done\n`);
+    };
+    const ui = mount(localizedConfig);
+    for (const distribution of ["OpenWrt", "ImmortalWrt"]) {
+      ui.select(distribution);
+      for (const language of ["zh-cn", "en", "zh-tw", "de", ""]) {
+        ui.edit("");
+        ui.selectLanguage(language);
+        await ui.button.onclick();
+        const expected =
+          localizedConfig.uci_defaults_templates[distribution][
+          ["zh-cn", "zh-tw"].includes(language) ? "zh-cn" : "en"
+          ];
+        assert.equal(urls.at(-1), expected);
+        assert.equal(ui.input.value, `# ${expected}\necho done\n`);
+      }
+    }
+  });
+
+  it("preserves drafts across language changes, deduplicates intact variants and permits reinsertion after deletion", async () => {
+    globalThis.fetch = async (url) => response(`# ${url}\necho done\n`);
+    const ui = mount(localizedConfig, "echo custom");
+    ui.selectLanguage("zh-cn");
+    await ui.button.onclick();
+    const chineseDraft = ui.input.value;
+    ui.selectLanguage("en");
+    assert.equal(ui.input.value, chineseDraft);
+    await ui.button.onclick();
+    assert.equal(ui.input.value, chineseDraft);
+    ui.select("ImmortalWrt");
+    await ui.button.onclick();
+    const immortalDraft = ui.input.value;
+    ui.select("OpenWrt");
+    await ui.button.onclick();
+    assert.equal(ui.input.value, chineseDraft);
+    ui.edit("echo custom");
+    await ui.button.onclick();
+    assert.equal(ui.input.value, "echo custom\n# open.sh\necho done\n");
+    ui.selectLanguage("zh-cn");
+    await ui.button.onclick();
+    assert.equal(ui.input.value, "echo custom\n# open.sh\necho done\n");
+    ui.select("ImmortalWrt");
+    assert.equal(ui.input.value, immortalDraft);
+    await ui.button.onclick();
+    assert.equal(ui.input.value, immortalDraft);
+  });
+
+  it("discards pending text after a language change, including changing away and back", async () => {
+    for (const changeBack of [false, true]) {
+      let resolve;
+      globalThis.fetch = () =>
+        new Promise((done) => {
+          resolve = done;
+        });
+      const ui = mount(localizedConfig, "# custom");
+      const pending = ui.button.onclick();
+      ui.selectLanguage("zh-cn");
+      if (changeBack) ui.selectLanguage("en");
+      assert.equal(ui.button.disabled, false);
+      resolve(response("# old language"));
+      await pending;
+      assert.equal(ui.input.value, "# custom");
+    }
+  });
+
+  it("does not let an old language request unlock or report an error over a newer request", async () => {
+    let rejectOld;
+    let resolveNew;
+    globalThis.fetch = () =>
+      new Promise((_resolve, reject) => {
+        rejectOld = reject;
+      });
+    const ui = mount(localizedConfig);
+    const oldRequest = ui.button.onclick();
+    ui.selectLanguage("zh-cn");
+    globalThis.fetch = () =>
+      new Promise((resolve) => {
+        resolveNew = resolve;
+      });
+    const newRequest = ui.button.onclick();
+    rejectOld(Error("old language failed"));
+    await oldRequest;
+    assert.equal(ui.alert.innerText, "");
+    assert.equal(ui.button.disabled, true);
+    resolveNew(response("# 中文示例"));
+    await newRequest;
+    assert.equal(ui.input.value, "# 中文示例");
+    assert.equal(ui.button.disabled, false);
+  });
+
+  it("falls back to English, legacy string URLs and data-link without requesting an object", async () => {
+    let requested;
+    globalThis.fetch = async (url) => {
+      requested = url;
+      return response("# example");
+    };
+    for (const [template, expected] of [
+      [{ en: "english.sh" }, "english.sh"],
+      ["single.sh", "single.sh"],
+      [{}, "legacy.sh"],
+    ]) {
+      const ui = mount({ uci_defaults_templates: { OpenWrt: template } });
+      ui.selectLanguage("zh-cn");
+      await ui.button.onclick();
+      assert.equal(requested, expected);
+    }
+  });
+
+  it("loads real configured templates whose translations preserve code, logs and sample assignments", async () => {
+    const root = new URL("../../www/", import.meta.url);
+    const context = {};
+    runInNewContext(readFileSync(new URL("config.js", root), "utf8"), context);
+    globalThis.fetch = async (url) =>
+      response(readFileSync(new URL(url, root), "utf8"));
+    const ui = mount(context.config);
+    const executableAndOptions = (text) =>
+      text
+        .split("\n")
+        .filter(
+          (line) =>
+            !line.trimStart().startsWith("#") || /^\s*#(?:!|\s*\w+=)/.test(line)
+        );
+    for (const distribution of ["OpenWrt", "ImmortalWrt"]) {
+      ui.select(distribution);
+      ui.selectLanguage("en");
+      await ui.button.onclick();
+      const english = ui.input.value;
+      ui.edit("");
+      ui.selectLanguage("zh-cn");
+      await ui.button.onclick();
+      const chinese = ui.input.value;
+      assert.match(chinese, /#.*[\u4e00-\u9fff]/);
+      assert.notEqual(english, chinese);
+      assert.deepEqual(
+        executableAndOptions(english),
+        executableAndOptions(chinese)
+      );
+      assert.match(chinese, new RegExp(`# wlan_name="${distribution}"`));
+    }
   });
 });
