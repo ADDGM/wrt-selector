@@ -147,8 +147,11 @@ header > div {
   font-weight: 650;
 }
 
-.selector-brand img {
+.selector-brand-mark {
   flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  background: url("logo.svg") center / contain no-repeat;
 }
 
 .selector-brand-text {
@@ -696,7 +699,7 @@ summary {
     gap: 8px;
   }
 
-  .selector-brand img {
+  .selector-brand-mark {
     width: 32px;
     height: 32px;
   }

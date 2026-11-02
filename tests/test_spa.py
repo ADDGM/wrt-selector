@@ -11,7 +11,7 @@ def test_spa(simplehttpserver):
         ))
         page.goto("http://localhost:8000/www/")
         page.select_option("#languages-select", "en")
-        expect(page).to_have_title("OpenWrt / ImmortalWrt Firmware Selector")
+        expect(page).to_have_title("Wrt Selector")
         expect(page.locator("#firmware-distribution")).to_have_value("OpenWrt")
 
         assert page.locator("#versions").select_option("19.07.10")[0] == "19.07.10"
