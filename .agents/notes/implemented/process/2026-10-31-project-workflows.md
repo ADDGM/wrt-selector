@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-项目采用四份个人工作流：测试和质量检查可被 Release 与 Pages 复用，构建只有 `scripts/build_site.py` 一个入口。个人版本通过标签发布 Release；原先的手动 Pages 选择由[Pages 自动部署](2026-11-03-pages-auto-deploy.md)部分取代，改为 develop 推送后检查并部署，保留手动入口。初始实现覆盖 main/develop 并使用 v 标签；用户明确 main 是纯上游镜像后，个人文件名和标签命名由[上游工作流隔离](2026-11-03-upstream-workflow-isolation.md)接管。旧官方 rsync 文件保留为禁用的上游内容，个人流程不依赖其目标或口令。
+项目采用四份主工作流，并由[Telegram 通知](2026-11-03-telegram-notifications.md)提供共用通知入口：测试和质量检查可被 Release 与 Pages 复用，构建只有 `scripts/build_site.py` 一个入口。个人版本通过标签发布 Release；原先的手动 Pages 选择由[Pages 自动部署](2026-11-03-pages-auto-deploy.md)部分取代，改为 develop 推送后检查并部署，保留手动入口。初始实现覆盖 main/develop 并使用 v 标签；用户明确 main 是纯上游镜像后，个人文件名和标签命名由[上游工作流隔离](2026-11-03-upstream-workflow-isolation.md)接管。旧官方 rsync 文件保留为禁用的上游内容，个人流程不依赖其目标或口令。
 
 测试覆盖 Node 22/24 的原有检查入口、Python 工具、HTML 站内链接与 Firefox 页面回归。HTML 检查关闭外链检查，避免上游网站临时故障阻断静态包发布。Firefox 沿用真实页面与模拟元数据/ASU 的已有用例，只安装 Firefox，保存 JUnit 和控制台日志。用例自行创建 context，因此不声称 pytest 的自动 tracing 能捕获这些 context。
 
@@ -54,4 +54,4 @@ Release 接受已存在的 `site-vX.Y.Z`、`site-vX.Y.Z-beta.N` 和 `site-vX.Y.Z
 
 同一套检查与产物同时服务日常开发、版本发布和 Pages 部署，中文提交形成可读的中文变更说明，也移除了官方服务器账号依赖。Release 和手动 Pages 会重新执行全部检查；develop 推送则由 Pages 统一调用一次，具体触发与去重契约见[Pages 自动部署](2026-11-03-pages-auto-deploy.md)。首次运行需要下载 Firefox、Python 依赖与扫描规则；固定 Action SHA 和工具版本需要定期维护。
 
-手动操作的工作流必须先出现在默认分支，发布标签必须包含工作流与脚本。上传后的真实权限、GitHub Pages 环境和容器执行情况只能由远端首次运行确认，本地静态校验不代表远端发布成功。若未来需要服务器推送或通知服务，届时再按明确目标添加，不保留闲置凭证与发布分支。
+手动操作的工作流必须先出现在默认分支，发布标签必须包含工作流与脚本。上传后的真实权限、GitHub Pages 环境和容器执行情况只能由远端首次运行确认，本地静态校验不代表远端发布成功。用户后续明确要求的 TG 汇总由[Telegram 通知](2026-11-03-telegram-notifications.md)补齐；若未来需要服务器推送，再按明确目标添加，不保留闲置凭证与发布分支。

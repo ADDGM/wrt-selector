@@ -75,7 +75,7 @@ jobs:
       contents: write
     env:
       RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
-      RELEASE_TITLE: 固件选择器 ${{ needs.resolve.outputs.tag }}
+      RELEASE_TITLE: Wrt Selector ${{ needs.resolve.outputs.tag }}
       RELEASE_EXISTS_MESSAGE: 该标签已经有 Release；请检查现有发布或使用新版本标签。
       SOURCE_SHA: ${{ needs.resolve.outputs.sha }}
       UPSTREAM_SHA: ${{ needs.resolve.outputs.upstream }}
@@ -128,3 +128,17 @@ jobs:
             --verify-tag --target "$SOURCE_SHA" \
             --title "$RELEASE_TITLE" \
             --notes-file build/release-notes.zh-CN.md "${args[@]}"
+
+  notify:
+    if: ${{ always() }}
+    needs: [resolve, quality, test, publish]
+    uses: ./.github/workflows/project-notify.yml
+    with:
+      title: Release 发布
+      results: ${{ toJSON(needs) }}
+      source-ref: ${{ needs.resolve.outputs.sha }}
+      display-ref: ${{ needs.resolve.outputs.tag || inputs.tag || github.ref_name }}
+      result-url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.resolve.outputs.tag }}
+    secrets:
+      TELEGRAM_TO: ${{ secrets.TELEGRAM_TO }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}

@@ -1,0 +1,59 @@
+name: Telegram 运行结果通知
+
+on:
+  workflow_call:
+    inputs:
+      title:
+        type: string
+        required: true
+      results:
+        type: string
+        required: true
+      source-ref:
+        type: string
+        default: ""
+      display-ref:
+        type: string
+        default: ""
+      result-url:
+        type: string
+        default: ""
+    secrets:
+      TELEGRAM_TO:
+        required: false
+      TELEGRAM_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  telegram:
+    name: 发送 Telegram 汇总
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: ${{ always() }}
+        id: checkout
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        if: ${{ always() && steps.checkout.outcome == 'success' }}
+        id: python
+        with:
+          python-version: "3.11"
+      - name: 发送或记录跳过原因
+        if: ${{ always() && steps.checkout.outcome == 'success' && steps.python.outcome == 'success' }}
+        env:
+          TELEGRAM_TO: ${{ secrets.TELEGRAM_TO }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          NOTIFY_TITLE: ${{ inputs.title }}
+          NOTIFY_RESULTS: ${{ inputs.results }}
+          NOTIFY_SHA: ${{ inputs.source-ref }}
+          NOTIFY_REF: ${{ inputs.display-ref || github.ref_name }}
+          NOTIFY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          NOTIFY_RESULT_URL: ${{ inputs.result-url }}
+        run: python -B scripts/notify_telegram.py

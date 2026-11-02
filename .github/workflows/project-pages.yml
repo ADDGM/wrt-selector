@@ -60,6 +60,8 @@ jobs:
     needs: [quality, test]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      url: ${{ steps.deployment.outputs.page_url }}
     permissions:
       contents: read
       pages: write
@@ -83,3 +85,16 @@ jobs:
       - name: 部署 Pages
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+  notify:
+    if: ${{ always() && github.ref == 'refs/heads/develop' }}
+    needs: [source, quality, test, deploy]
+    uses: ./.github/workflows/project-notify.yml
+    with:
+      title: Pages 检查与部署
+      results: ${{ toJSON(needs) }}
+      source-ref: ${{ github.sha }}
+      result-url: ${{ needs.deploy.outputs.url }}
+    secrets:
+      TELEGRAM_TO: ${{ secrets.TELEGRAM_TO }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
