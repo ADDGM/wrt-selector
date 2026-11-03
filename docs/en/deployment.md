@@ -55,9 +55,45 @@ The repository's destination is [ADDGM/wrt-selector](https://github.com/ADDGM/wr
 
 Personal versions use `site-vX.Y.Z`, `site-vX.Y.Z-beta.N` or `site-vX.Y.Z-rc.N`. Upstream `v*` tags are not personal releases. A release tag must contain project workflows/scripts and point to personal source already integrated into `develop`, not a pure upstream commit. Push only the intended tag, not every upstream tag.
 
-Pushing a valid tag triggers the release workflow; the manual entry accepts an existing tag. Tests and quality run before ZIP, checksum and build information are published. Beta/RC versions are prereleases and not latest. Existing releases are never overwritten. After an interrupted run, inspect the release before retrying, and do not move a published tag.
+Pushing a valid tag triggers the release workflow; the manual entry accepts an existing tag. Tests and quality run before the ZIP, checksum, build metadata and complete bilingual release-notes.md are published. The notes file also supplies the Release body. Beta/RC versions are prereleases and not latest. Existing releases are never overwritten. After an interrupted run, inspect the release before retrying, and do not move a published tag.
 
-The release tool groups personal commits since the previous reachable `site-v` tag and excludes a fixed upstream snapshot. Generated commit details currently retain Chinese commit summaries. English and Chinese user-facing version summaries are maintained in [the changelog](../../CHANGELOG.md) and [中文更新记录](../../CHANGELOG.zh-CN.md). Write access is limited to the publish job using `GITHUB_TOKEN`.
+The release tool groups personal commits since the previous reachable `site-v` tag and excludes a fixed upstream snapshot. Commit titles retain their Chinese originals; editorial sections and release information are bilingual. Write access is limited to the publish job using `GITHUB_TOKEN`.
+
+### Prepare complete release notes
+
+Before tagging, create docs/releases/TARGET-TAG.zh-CN.md and docs/releases/TARGET-TAG.en.md and commit them with the version's source. These files hold the introduction, highlights, requirements, usage/deployment, limitations and acknowledgements. The generator adds the version, full commit links, baseline comparison, notes generation time, workflow link, asset names/sizes/file count and actual ZIP checksum.
+
+This example uses site-v1.1.0; it does not select or publish that version:
+
+```sh
+cp "docs/releases/TEMPLATE.zh-CN.md" "docs/releases/site-v1.1.0.zh-CN.md"
+cp "docs/releases/TEMPLATE.en.md" "docs/releases/site-v1.1.0.en.md"
+```
+
+Edit both files, replace every TODO and retain the five required second-level headings. Use ordinary inline Markdown links: a relative ../en/usage.md link becomes a GitHub file link pinned to the release tag. Do not use reference links, raw HTML links or fragments on versioned file links. The generator owns language navigation with explicit anchors matching GitHub's user-content prefix. Fenced code examples remain literal.
+
+Preview locally without creating tags, publishing, pushing or notifying:
+
+```sh
+python scripts/build_site.py --version site-v1.1.0
+python scripts/release_notes.py --tag site-v1.1.0 --preview
+```
+
+The output is build/release-notes.md. Preview uses HEAD and working-tree editorial files and explicitly states that cloud publication is unverified. Formal generation requires HEAD to match an existing tag and reads both languages from that Git snapshot, excluding temporary working-tree edits. Both modes verify the existing package's version, source, inner/outer metadata and SHA-256; formal mode also requires source_dirty=false. Rebuild after website changes; regenerate notes after editorial changes.
+
+For the same real Markdown rendering check as CI, install and authenticate GitHub CLI, then run:
+
+```sh
+python scripts/release_notes.py --tag site-v1.1.0 --preview --verify-rendered-links
+```
+
+Everyday commands infer the GitHub repository from origin without environment overrides; unusual clones can pass --repository owner/repo. CI supplies the repository/run link from GitHub context and requires the rendering check.
+
+Missing translations/sections, remaining TODO/TBD markers, missing file targets, incorrect assets/checksums, links lost during rendering and missing fragment targets block publication. Planned download links are checked against actual local artifacts, not HTTP availability before upload. External sites receive HTTPS syntax checks only; transient third-party availability does not block releases. Test external service availability separately when needed.
+
+Notes generation time is not GitHub's actual publication time. The workflow link provides run-specific evidence; the generator does not reuse old test counts or claim publication/Telegram delivery before they occur. Clean up disposable preview files and packages after use.
+
+The two site-v1.0.0 editorial files were migrated from the accepted first-release notes as reference content. The historical tag contains neither these files nor the new generator. Automation applies to new tags containing these changes and their version-specific content; do not move old tags or rerun existing Releases to migrate them. Keep concise version summaries synchronized in [the changelog](../../CHANGELOG.md) and [中文更新记录](../../CHANGELOG.zh-CN.md).
 
 ## Telegram
 

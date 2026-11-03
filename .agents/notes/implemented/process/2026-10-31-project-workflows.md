@@ -26,7 +26,7 @@ HTML 标题按页面 h1、构建及下载区 h2、自定义选项 h3 连续分�
 
 构建信息记录版本、源码 SHA、站点源码是否修改和提交时间。ZIP 使用排序后的文件与提交时间；同一源码、版本和环境可复现。只清理带本工具标识的 `build/site`，防止把用户已有目录当缓存；每个 ZIP 附带 SHA256。校验文本固定 LF，避免 Windows 默认 CRLF 被 Linux 的 `sha256sum` 解释为文件名的一部分。自定义配置文件必须先纳入 Git 索引才能进入产物，本地修改进入预览包并标记 `source_dirty`。
 
-Release 接受已存在的 `site-vX.Y.Z`、`site-vX.Y.Z-beta.N` 和 `site-vX.Y.Z-rc.N` 个人标签，先解析固定 SHA，再对该 SHA 执行测试、质量检查和打包。发布前核验包摘要、版本、源码 SHA 和干净站点状态，按提交类型生成中文说明，按上游隔离策略排除初始历史与后续同步的上游提交。预发布不成为 latest。已有 Release 明确失败，不静默覆盖资产；中断后的残留发布需要维护者检查。
+Release 接受已存在的 `site-vX.Y.Z`、`site-vX.Y.Z-beta.N` 和 `site-vX.Y.Z-rc.N` 个人标签，先解析固定 SHA，再对该 SHA 执行测试、质量检查和打包。发布前核验包摘要、版本、源码 SHA 和干净站点状态，按上游隔离策略排除初始历史与后续同步的上游提交。[双语发布说明](2026-11-04-release-notes-automation.md)接管正文组成与渲染链接检查：每版本中英文内容结合动态提交和产物信息，release-notes.md 同时用于正文与下载资产。预发布不成为 latest。已有 Release 明确失败，不静默覆盖资产；中断后的残留发布需要维护者检查。
 
 只有 Release 上传任务获得 `contents: write`，只有 Pages 部署任务获得 `pages: write` 和 `id-token: write`。同一标签发布以及 Pages 部署不相互取消。Pages 使用同一 ZIP，校验后展开并部署，不另行改配置；部署来源在仓库 Settings 中选 GitHub Actions，环境允许的分支由仓库管理员设置。
 

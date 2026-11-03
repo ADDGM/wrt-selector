@@ -55,9 +55,45 @@ ZIP 只包含 Git 跟踪的 `www/` 文件、许可证和构建信息；保留原
 
 个人版本使用 `site-vX.Y.Z`、`site-vX.Y.Z-beta.N` 或 `site-vX.Y.Z-rc.N`。上游 `v*` 标签不用于个人发布。标签必须包含本项目工作流和脚本，指向已合入 `develop` 的个人源码，不能指向纯上游提交。只推送本次需要发布的标签，不要批量推送上游标签。
 
-推送有效标签会触发发布，手动入口接受已存在标签。通过测试和质量检查后发布 ZIP、校验文件及构建信息。Beta/RC 标记为预发布，不作为 latest。已有 Release 不覆盖；运行中断后先检查发布状态再决定如何重试，不要移动已发布标签。
+推送有效标签会触发发布，手动入口接受已存在标签。通过测试和质量检查后发布 ZIP、校验文件、构建信息及完整双语说明 release-notes.md，说明文件同时用作 Release 正文。Beta/RC 标记为预发布，不作为 latest。已有 Release 不覆盖；运行中断后先检查发布状态再决定如何重试，不要移动已发布标签。
 
-工具按类型整理从上一个可达 `site-v` 标签以来的个人提交，并排除固定的上游快照。自动生成的提交明细目前保留中文提交标题；面向使用者的中英文版本摘要同步维护在[中文更新记录](../../CHANGELOG.zh-CN.md)和 [English changelog](../../CHANGELOG.md)。写权限仅授予使用 `GITHUB_TOKEN` 的发布任务。
+工具按类型整理从上一个可达 `site-v` 标签以来的个人提交，并排除固定的上游快照。提交标题保留中文原文，说明章节和发布信息提供中英文。写权限仅授予使用 `GITHUB_TOKEN` 的发布任务。
+
+### 准备完整发布说明
+
+在打标签前创建 docs/releases/目标标签.zh-CN.md 和 docs/releases/目标标签.en.md，并与本版源码一起提交。两份文件保存简介、本版本重点、运行环境、使用与部署、已知限制和鸣谢；生成器补齐版本、完整提交链接、基线对比、说明生成时间、工作流链接、资产名称/大小/文件数和实际 ZIP 校验值。
+
+以下以 site-v1.1.0 为示例，不代表已经决定或发布这个版本：
+
+```sh
+cp "docs/releases/TEMPLATE.zh-CN.md" "docs/releases/site-v1.1.0.zh-CN.md"
+cp "docs/releases/TEMPLATE.en.md" "docs/releases/site-v1.1.0.en.md"
+```
+
+编辑两份文件并替换全部 TODO，保持模板的五个二级章节。使用普通内联 Markdown 链接：如从版本内容引用 ../zh-CN/usage.md，生成器会改为当前标签下的 GitHub 文件链接。不要使用引用式链接、原始 HTML 链接或版本文档片段；语言跳转由生成器提供显式锚点并匹配 GitHub 的 user-content 前缀。代码块内容保持原样。
+
+本地预览无需创建标签，也不会发布、推送或通知：
+
+```sh
+python scripts/build_site.py --version site-v1.1.0
+python scripts/release_notes.py --tag site-v1.1.0 --preview
+```
+
+输出为 build/release-notes.md。预览读取 HEAD 和工作区中的版本说明，明确标记为未完成云端发布；正式运行要求 HEAD 等于已有标签，并从该标签的 Git 内容读取两种语言，不混入工作区临时修改。两种模式都核对已有包的版本、源码、包内外构建信息和 SHA-256；正式模式还要求 source_dirty=false。修改网站后应重新打包，修改文案后重新生成说明即可。
+
+若需要和 CI 相同的真实 Markdown 渲染校验，安装并登录 GitHub CLI 后运行：
+
+```sh
+python scripts/release_notes.py --tag site-v1.1.0 --preview --verify-rendered-links
+```
+
+普通命令从 origin 识别 GitHub 仓库，不需要环境变量；特殊克隆可显式传 --repository owner/repo。CI 从 GitHub 上下文传入仓库和运行链接，并强制执行渲染检查。
+
+缺少任一语言、未替换的 TODO/TBD、必需章节缺失、文件链接不存在、资产名或摘要不符、渲染后链接消失和锚点无目标都会阻止发布。待上传的资产链接按本次实际产物验证，不要求上传前就返回 HTTP 200；外部站点只校验 HTTPS 地址格式，不把第三方短暂不可用变成发布阻断。需要判断外部服务当前可用性时另做联网验收。
+
+说明生成时间不等于 GitHub 实际发布时间。工作流链接提供本次检查证据，生成器不复制旧测试数量，也不预先宣称发布或 TG 发送成功。预览文件和打包产物使用结束后应清理。
+
+docs/releases/site-v1.0.0 的两种语言文件是从已确认首发说明迁入的参考内容，历史 site-v1.0.0 标签不包含新生成器和这些文件。自动化对包含本次改动及对应版本说明的新标签生效，不通过移动旧标签或重跑已有 Release 迁移。简短版本摘要仍同步到[中文更新记录](../../CHANGELOG.zh-CN.md)和 [English changelog](../../CHANGELOG.md)。
 
 ## Telegram
 

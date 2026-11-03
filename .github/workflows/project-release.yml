@@ -67,7 +67,7 @@ jobs:
       version: ${{ needs.resolve.outputs.tag }}
 
   publish:
-    name: 上传 ZIP 并发布中文说明
+    name: 上传 ZIP 并发布双语说明
     needs: [resolve, quality, test]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -94,21 +94,14 @@ jobs:
         with:
           name: website-package
           path: build/
-      - name: 校验产物与生成中文说明
+      - name: 校验产物、生成双语说明并检查渲染链接
         shell: bash
         run: |
-          (cd build && sha256sum --check -- *.zip.sha256)
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-          info = json.loads(Path("build/build-info.json").read_text())
-          assert info["source_sha"] == os.environ["SOURCE_SHA"]
-          assert info["version"] == os.environ["RELEASE_TAG"]
-          assert not info["source_dirty"]
-          PY
           python scripts/release_notes.py --tag "$RELEASE_TAG" \
-            --upstream-ref "$UPSTREAM_SHA" --develop-ref refs/remotes/origin/develop
+            --upstream-ref "$UPSTREAM_SHA" --develop-ref refs/remotes/origin/develop \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --verify-rendered-links
       - name: 创建 Release（已有发布不覆盖）
         shell: bash
         run: |
@@ -125,9 +118,10 @@ jobs:
             "build/firmware-selector-${RELEASE_TAG}.zip" \
             "build/firmware-selector-${RELEASE_TAG}.zip.sha256" \
             build/build-info.json \
+            build/release-notes.md \
             --verify-tag --target "$SOURCE_SHA" \
             --title "$RELEASE_TITLE" \
-            --notes-file build/release-notes.zh-CN.md "${args[@]}"
+            --notes-file build/release-notes.md "${args[@]}"
 
   notify:
     if: ${{ always() }}
