@@ -4,6 +4,15 @@
 
 个人版本使用 `site-v*`。上游 OpenWrt 的 `v*` 历史属于另一条版本序列，不代表 Wrt Selector 已经发布的个人版本。
 
+## site-v1.0.1 — 版本摘要
+
+本维护版本完善发布交付流程，并同步上游翻译更新。实际发布状态和可下载产物以 [GitHub Releases](https://github.com/ADDGM/wrt-selector/releases) 为准。
+
+- 将审定的版本内容与经过核验的 Git、构建信息组合，自动生成完整中英文发布说明。
+- 按 GitHub 实际渲染结果校验发布链接，同一份 release-notes.md 同时作为 Release 正文和下载文件。
+- 提供本地发布预览，在发布前拒绝不完整内容、无效链接或不一致的产物信息。
+- 同步 OpenWrt 官方上游的丹麦语、罗马尼亚语翻译；从 site-v1.0.0 升级无需配置格式迁移。
+
 ## site-v1.0.0 — 版本摘要
 
 以下是首个个人版本的变更摘要。实际发布状态和可下载产物以 [GitHub Releases](https://github.com/ADDGM/wrt-selector/releases) 为准。

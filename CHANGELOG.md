@@ -5,6 +5,15 @@
 Personal releases use `site-v*`. The older `v*` entries below belong to the
 OpenWrt upstream project, not Wrt Selector's personal release series.
 
+## site-v1.0.1 — version overview
+
+This maintenance version improves release delivery and includes upstream translation updates. Check [GitHub Releases](https://github.com/ADDGM/wrt-selector/releases) for publication status and downloadable assets.
+
+- Generate complete English and Simplified Chinese release notes from reviewed version content and verified Git/build metadata.
+- Validate release links against GitHub-rendered Markdown and distribute the same release-notes.md as both the Release body and a download.
+- Add local release previews and reject incomplete content, invalid links or inconsistent package metadata before publication.
+- Update Danish and Romanian translations from the official OpenWrt upstream; deployment configuration needs no format migration from site-v1.0.0.
+
 ## site-v1.0.0 — version overview
 
 Changes for the first personal version are listed below. Check
