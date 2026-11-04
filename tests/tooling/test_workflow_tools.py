@@ -191,14 +191,16 @@ class WorkflowToolsTest(unittest.TestCase):
         output = self.root / "build/release-notes.md"
         command = [sys.executable, "-B", str(scripts / "release_notes.py"),
                    "--tag", "site-v1.1.0", "--upstream-ref", upstream,
+                   "--repository", "example/selector",
                    "--output", str(output)]
         for preview in (True, False):
             with self.subTest(preview=preview):
                 if not preview:
                     self.git("tag", "-a", "site-v1.1.0", "-m", "Current release")
                 before = self.git("tag", "--list")
-                subprocess.run(command + (["--preview"] if preview else []), cwd=self.root,
-                               check=True, capture_output=True)
+                with patch.dict("os.environ", {"GITHUB_REPOSITORY": "ci-owner/ci-project"}):
+                    subprocess.run(command + (["--preview"] if preview else []), cwd=self.root,
+                                   check=True, capture_output=True)
                 notes = output.read_text(encoding="utf-8")
                 self.assert_full_changelog_range(notes, previous, "site-v1.1.0")
                 self.assertIn("新的个人功能", notes)
