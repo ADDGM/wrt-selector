@@ -59,6 +59,8 @@ Pushing a valid tag triggers the release workflow; the manual entry accepts an e
 
 The release tool groups personal commits since the previous reachable `site-v` tag and excludes a fixed upstream snapshot. Commit titles retain their Chinese originals; editorial sections and release information are bilingual. Write access is limited to the publish job using `GITHUB_TOKEN`.
 
+Each language automatically includes a **Full changelog** section after the grouped commits. Its GitHub comparison link covers all commits and file changes between the previous and current versions, including merged upstream updates. The previous version follows the reachable `site-v` tag selection; a first release without a previous tag uses the project's initial baseline. Do not hand-write this link in version content or add it after publication. Formal releases and local previews use the same generator, and the comparison link passes through the existing rendered-link validation.
+
 ### Prepare complete release notes
 
 Before tagging, create docs/releases/TARGET-TAG.zh-CN.md and docs/releases/TARGET-TAG.en.md and commit them with the version's source. These files hold the introduction, highlights, requirements, usage/deployment, limitations and acknowledgements. The generator adds the version, full commit links, baseline comparison, notes generation time, workflow link, asset names/sizes/file count and actual ZIP checksum.

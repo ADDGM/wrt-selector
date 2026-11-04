@@ -95,7 +95,8 @@ def release_notes(root, tag, previous="", upstream_ref="main", develop_ref="deve
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     prerelease = "-beta." in tag or "-rc." in tag
     changed = len(git(root, "diff", "--name-only", start, target).splitlines())
-    compare = f"[{previous}]({repo_url}/compare/{start}...{tag})"
+    compare_url = f"{repo_url}/compare/{start}...{tag}"
+    compare = f"[{previous}]({compare_url})"
     lines = [
         f"# Wrt Selector {tag}", "",
         "[简体中文](#user-content-release-zh-cn) · [English](#user-content-release-en)", "",
@@ -134,6 +135,10 @@ def release_notes(root, tag, previous="", upstream_ref="main", develop_ref="deve
         lines += ["仅列个人非合并提交，上游镜像历史已排除；区间文件对比可能包含合入的上游更新。" if chinese
                   else "Personal non-merge commits only; upstream history is excluded. File comparisons may include merged upstream updates. Commit titles retain their original Chinese.", ""]
         lines += [commit_sections(commits, repository, index), ""]
+        lines += ["## 完整更新日志" if chinese else "## Full changelog", "",
+                  f"[{previous} → {tag}]({compare_url})", "",
+                  "查看此版本区间的全部提交与文件变更，包含合入的上游更新。" if chinese
+                  else "View all commits and file changes between these versions, including merged upstream updates.", ""]
         lines += ["## 构建产物与校验" if chinese else "## Assets and verification", ""]
         lines += ["网站包不包含路由器固件，也不会自动提交 ASU 构建。" if chinese
                   else "The website ZIP is not router firmware and does not submit ASU builds.", ""]

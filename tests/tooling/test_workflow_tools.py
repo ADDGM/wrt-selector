@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -62,6 +63,15 @@ class WorkflowToolsTest(unittest.TestCase):
         return subprocess.check_output(
             ["git", "-C", str(self.root), *args], stderr=subprocess.PIPE
         ).decode("utf-8").strip()
+
+    def assert_full_changelog_range(self, notes, start, tag):
+        expected = f"https://github.com/example/selector/compare/{start}...{tag}"
+        for heading in ("完整更新日志", "Full changelog"):
+            with self.subTest(heading=heading):
+                self.assertIn(f"## {heading}\n", notes)
+                section = notes.split(f"## {heading}\n", 1)[1].split("\n## ", 1)[0]
+                links = re.findall(r"\]\((https://github\.com/example/selector/compare/[^)]+)\)", section)
+                self.assertEqual(links, [expected])
 
     def test_subject_contract(self):
         for subject in ("fix(tooling): 修复默认检查", "feat!: 调整构建契约", "ci: 增加测试"):
@@ -152,6 +162,7 @@ class WorkflowToolsTest(unittest.TestCase):
         self.assertIn("建立测试基线", notes)
         self.assertNotIn("Original upstream history", notes)
         self.assertIn("不包含路由器固件", notes)
+        self.assert_full_changelog_range(notes, self.base, "site-v1.2.3")
         self.git("commit", "--allow-empty", "-qm", "fix: 标签之后的改动")
         with self.assertRaisesRegex(ValueError, "同一提交"):
             release_notes(self.root, "site-v1.2.3")
@@ -164,6 +175,39 @@ class WorkflowToolsTest(unittest.TestCase):
         notes = release_notes(self.root, "site-v1.1.0")
         self.assertIn("添加新选项", notes)
         self.assertNotIn("建立测试基线", notes)
+
+        self.assert_full_changelog_range(notes, self.git("rev-parse", "site-v1.0.0"), "site-v1.1.0")
+
+    def test_release_notes_cli_generates_full_range(self):
+        self.git("tag", "-a", "site-v1.0.0", "-m", "Previous release")
+        previous = self.git("rev-parse", "site-v1.0.0^{commit}")
+        self.git("commit", "--allow-empty", "-qm", "feat: 新的个人功能")
+        upstream = self.sync_upstream()
+        build_site(self.root, "site-v1.1.0")
+        scripts = self.root / "scripts"
+        scripts.mkdir()
+        for name in ("release_notes.py", "release_content.py", "workflow_utils.py"):
+            shutil.copyfile(Path(__file__).resolve().parents[2] / "scripts" / name, scripts / name)
+        output = self.root / "build/release-notes.md"
+        command = [sys.executable, "-B", str(scripts / "release_notes.py"),
+                   "--tag", "site-v1.1.0", "--upstream-ref", upstream,
+                   "--output", str(output)]
+        for preview in (True, False):
+            with self.subTest(preview=preview):
+                if not preview:
+                    self.git("tag", "-a", "site-v1.1.0", "-m", "Current release")
+                before = self.git("tag", "--list")
+                subprocess.run(command + (["--preview"] if preview else []), cwd=self.root,
+                               check=True, capture_output=True)
+                notes = output.read_text(encoding="utf-8")
+                self.assert_full_changelog_range(notes, previous, "site-v1.1.0")
+                self.assertIn("新的个人功能", notes)
+                self.assertNotIn("Future upstream", notes)
+                self.assertEqual("Local preview:" in notes, preview)
+                self.assertEqual(self.git("tag", "--list"), before)
+        full_history = self.git("log", "--format=%H", f"{previous}...site-v1.1.0")
+        self.assertIn(upstream, full_history)
+        self.assertNotIn(previous, full_history)
 
     def sync_upstream(self):
         self.git("switch", "-q", "main")
@@ -236,6 +280,7 @@ class WorkflowToolsTest(unittest.TestCase):
         before = self.git("tag", "--list")
         notes = release_notes(self.root, "site-v1.2.3", preview=True)
         self.assertIn("[example](missing.md)", notes)
+        self.assert_full_changelog_range(notes, self.base, "site-v1.2.3")
         self.assertEqual(self.git("tag", "--list"), before)
 
     def test_placeholders_sections_and_missing_document_links_fail(self):
