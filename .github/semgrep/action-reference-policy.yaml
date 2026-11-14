@@ -1,0 +1,25 @@
+# Reviewed exceptions: .agents/notes/implemented/process/2026-11-14-action-tag-security-policy.md
+rules:
+  - id: project-action-reference-must-be-reviewed
+    message: >-
+      Pin remote actions to a full 40-character commit SHA unless the exact
+      official action and major tag are explicitly approved in this rule.
+      Mutable tags remain a supply-chain risk, including approved exceptions.
+    severity: WARNING
+    languages: [yaml]
+    metadata:
+      category: security
+      technology: [github-actions]
+      confidence: HIGH
+    patterns:
+      - pattern-inside: "{steps: ...}"
+      - pattern: |
+          uses: "$ACTION"
+      - metavariable-pattern:
+          metavariable: $ACTION
+          language: generic
+          patterns:
+            - pattern-not-regex: '^\./'
+            - pattern-not-regex: '^docker://'
+            - pattern-not-regex: '\A[^@\s]+@[0-9a-f]{40}\z'
+            - pattern-not-regex: '\Aactions/(?:checkout@v7|setup-node@v6|setup-python@v6|upload-artifact@v7|download-artifact@v8|upload-pages-artifact@v5|deploy-pages@v5)\z'

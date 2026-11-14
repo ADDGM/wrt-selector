@@ -73,9 +73,15 @@ jobs:
         with:
           ref: ${{ inputs.source-ref || github.sha }}
           persist-credentials: false
+      - name: 测试 Action 引用安全规则
+        run: >-
+          semgrep scan --test --strict --metrics off --disable-version-check
+          .github/semgrep
       - name: 扫描网站、工具与工作流
         run: >-
           semgrep scan --config p/javascript --config p/python --config p/github-actions
+          --config .github/semgrep/action-reference-policy.yaml
+          --exclude-rule yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
           --error --strict --metrics off --sarif --output semgrep.sarif
           www scripts .github/workflows/project-*.yml
       - uses: actions/upload-artifact@v7

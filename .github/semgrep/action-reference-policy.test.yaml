@@ -1,0 +1,89 @@
+# Regression fixtures only; never run these steps as a workflow.
+name: Action reference policy fixtures
+on: workflow_dispatch
+jobs:
+  references:
+    runs-on: ubuntu-latest
+    steps:
+      # ok: project-action-reference-must-be-reviewed
+      - uses: actions/checkout@v7
+      # ok: project-action-reference-must-be-reviewed
+      - uses: actions/setup-node@v6
+      # ok: project-action-reference-must-be-reviewed
+      - uses: actions/setup-python@v6
+      # ok: project-action-reference-must-be-reviewed
+      - uses: actions/upload-artifact@v7
+      # ok: project-action-reference-must-be-reviewed
+      - uses: actions/download-artifact@v8
+      # ok: project-action-reference-must-be-reviewed
+      - uses: actions/upload-pages-artifact@v5
+      # ok: project-action-reference-must-be-reviewed
+      - uses: actions/deploy-pages@v5
+      # ok: project-action-reference-must-be-reviewed
+      - uses: "actions/checkout@v7" # YAML comments are not part of the reference.
+      # ok: project-action-reference-must-be-reviewed
+      - uses: 'actions/setup-node@v6'
+      # ok: project-action-reference-must-be-reviewed
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # ok: project-action-reference-must-be-reviewed
+      - uses: anishathalye/proof-html@f060b7619c2410bd85d970459a60ef431cf47ed5
+      # ok: project-action-reference-must-be-reviewed
+      - uses: vendor/action/subpath@f060b7619c2410bd85d970459a60ef431cf47ed5
+      # ok: project-action-reference-must-be-reviewed
+      - uses: ./.github/actions/local
+      # ok: project-action-reference-must-be-reviewed
+      - uses: docker://alpine:3.22
+      # ok: project-action-reference-must-be-reviewed
+      - uses: docker://alpine@sha256:2e45517a85e13a9cca14a2a00df6bb48affd66b8ebfae1b0991cd57578362fb0
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: anishathalye/proof-html@v2
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: vendor/action@main
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/cache@v4
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: github/codeql-action/init@v4
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/checkout@v8
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/checkout@v6
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/checkout@v7.0.0
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/checkout@main
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/setup-node@v7
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/setup-python@v7
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/upload-artifact@v8
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/download-artifact@v9
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/upload-pages-artifact@v6
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/deploy-pages@v6
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: evil-actions/checkout@v7
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/checkout-extra@v7
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/checkout/subpath@v7
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/checkout@v70
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/checkout@v7-beta
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: Actions/checkout@v7
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: "actions/checkout@v7 trailing-text"
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: "actions/checkout@v7\ntrailing-text"
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: actions/checkout@3d3c42e
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: vendor/action@f060b7619c2410bd85d970459a60ef431cf47ed5-extra
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: vendor/action
+      # ruleid: project-action-reference-must-be-reviewed
+      - uses: ${{ inputs.action }}
