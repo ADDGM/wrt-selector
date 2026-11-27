@@ -6,12 +6,19 @@ let currentLanguageJson = {};
 function apply(language, languageJson) {
   currentLanguage = language;
   currentLanguageJson = languageJson;
+  // Reset opt-in fallbacks first so missing translations never retain the previous language.
+  $$("[data-tr-fallback]").forEach((e) => {
+    e.innerText = languageJson[e.dataset.trFallback] || e.dataset.trDefault;
+  });
   for (const tr in languageJson) {
     $$(`.${tr}`).forEach((e) => {
       if (e.placeholder !== undefined) {
         e.placeholder = languageJson[tr];
       } else {
-        e.innerText = languageJson[tr];
+        const detail = languageJson[e.dataset?.trDetail];
+        e.innerText = detail
+          ? `${languageJson[tr]} ${detail}`
+          : languageJson[tr];
       }
     });
   }

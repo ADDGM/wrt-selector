@@ -70,6 +70,43 @@ describe("translate", () => {
     assert.equal(fetchedUrl, "langs/fr.json");
   });
 
+  it("replaces image help when the next language lacks a specific or generic translation", async (t) => {
+    const key = "tr-x86-combined-efi-help";
+    const row = {
+      dataset: {
+        trFallback: "tr-other-help",
+        trDefault: "COMBINED-EFI",
+        trDetail: "tr-squashfs-help",
+      },
+    };
+    t.mock.method(document, "_qsaImpl", (selector) =>
+      ["[data-tr-fallback]", `.${key}`].includes(selector) ? [row] : []
+    );
+    const fetchMock = t.mock.method(globalThis, "fetch");
+    for (const [lang, mapping, expected] of [
+      [
+        "with-specific",
+        {
+          [key]: "UEFI image.",
+          "tr-squashfs-help": "Read-only base.",
+          "tr-other-help": "Other file",
+        },
+        "UEFI image. Read-only base.",
+      ],
+      ["only-specific", { [key]: "Image UEFI." }, "Image UEFI."],
+      ["only-generic", { "tr-other-help": "Autre fichier" }, "Autre fichier"],
+      ["no-image-help", {}, "COMBINED-EFI"],
+    ]) {
+      fetchMock.mock.mockImplementation(async () => ({
+        status: 200,
+        json: async () => mapping,
+      }));
+      translate(lang);
+      await new Promise(setImmediate);
+      assert.equal(row.innerText, expected);
+    }
+  });
+
   it("handles fetch rejection gracefully", async () => {
     globalThis.fetch = () => Promise.reject(new Error("Network error"));
 

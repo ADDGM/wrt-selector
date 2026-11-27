@@ -16,7 +16,7 @@ export function getModelTitles(titles) {
   });
 }
 
-export function getHelpTextClass(image) {
+export function getHelpTextClass(image, target) {
   const type = image.type;
   const name = image.name;
 
@@ -26,11 +26,7 @@ export function getHelpTextClass(image) {
     return "tr-factory-help";
   } else if (name.includes("initramfs")) {
     return "tr-initramfs-help";
-  } else if (
-    type.includes("kernel") ||
-    type.includes("zimage") ||
-    type.includes("uimage")
-  ) {
+  } else if (type.includes("kernel") || /[zu]image/i.test(type)) {
     return "tr-kernel-help";
   } else if (type.includes("root")) {
     return "tr-rootfs-help";
@@ -47,7 +43,39 @@ export function getHelpTextClass(image) {
   } else if (type.includes("uboot") || type.includes("u-boot")) {
     return "tr-uboot-help";
   }
+  if (
+    target?.startsWith("x86/") &&
+    (type === "combined" || type === "combined-efi")
+  ) {
+    return `tr-x86-${type}-help`;
+  }
+  if (
+    (target?.startsWith("brcm63xx/") || target?.startsWith("bcm63xx/")) &&
+    /^cfe(?:-(?:4M|8M|16M|AU|EU|bc221|old))?$/.test(type)
+  ) {
+    return "tr-cfe-help";
+  }
   return "tr-other-help";
+}
+
+export function getX86ImageFilesystem(image, profile) {
+  if (
+    !profile.target?.startsWith("x86/") ||
+    !["combined", "combined-efi", "rootfs"].includes(image.type)
+  )
+    return;
+
+  const known = ["ext4", "squashfs"];
+  if (image.filesystem !== undefined) {
+    return known.includes(image.filesystem) ? image.filesystem : undefined;
+  }
+
+  // Older catalogues omit filesystem; match the full raw image name, not the model name.
+  const prefix =
+    profile.profiles?.[profile.id]?.image_prefix ?? profile.image_prefix;
+  if (!prefix) return;
+  const name = image.name.replace(/\.gz$/, "");
+  return known.find((fs) => name === `${prefix}-${fs}-${image.type}.img`);
 }
 
 export function commonPrefix(array) {
@@ -92,11 +120,15 @@ function createLink(mobj, image, imageUrl) {
   return td;
 }
 
-function createExtra(image, config) {
+function createExtra(image, config, profile) {
   const td = document.createElement("td");
   if (config.show_help) {
     const help = document.createElement("div");
-    help.className = `help-content ${getHelpTextClass(image)}`;
+    help.className = `help-content ${getHelpTextClass(image, profile.target)}`;
+    const fs = getX86ImageFilesystem(image, profile);
+    if (fs) help.dataset.trDetail = `tr-${fs}-help`;
+    help.dataset.trFallback = "tr-other-help";
+    help.dataset.trDefault = image.type.toUpperCase();
     td.appendChild(help);
   }
   if (image.sha256) {
@@ -227,7 +259,7 @@ export function updateImages(version, mobj, context) {
     // populate desktop view
     for (const image of sortImages(mobj.images)) {
       const link = createLink(mobj, image, mobj.image_folder);
-      const extra = createExtra(image, config);
+      const extra = createExtra(image, config, mobj);
 
       const row = append(table1, "TR");
       row.appendChild(link);
@@ -237,7 +269,7 @@ export function updateImages(version, mobj, context) {
     // populate mobile view
     for (const image of sortImages(mobj.images)) {
       const link = createLink(mobj, image, mobj.image_folder);
-      const extra = createExtra(image, config);
+      const extra = createExtra(image, config, mobj);
 
       links2.appendChild(link);
       extras2.appendChild(extra);

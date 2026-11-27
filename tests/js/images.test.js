@@ -1,9 +1,11 @@
 import "./setup.js";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   getModelTitles,
   getHelpTextClass,
+  getX86ImageFilesystem,
   sortImages,
   isAnyDeviceSelected,
   commonPrefix,
@@ -92,6 +94,73 @@ describe("getHelpTextClass", () => {
     );
   });
 
+  it("recognizes canonical kernel type names without reclassifying initramfs or fullimage", () => {
+    for (const type of ["zImage", "uImage"]) {
+      assert.equal(
+        getHelpTextClass({ type, name: "kernel.bin" }),
+        "tr-kernel-help"
+      );
+      assert.equal(
+        getHelpTextClass({ type, name: "initramfs.bin" }),
+        "tr-initramfs-help"
+      );
+    }
+    assert.equal(
+      getHelpTextClass({ type: "fullimage", name: "disk.bin" }),
+      "tr-other-help"
+    );
+  });
+
+  it("identifies documented BCM63xx CFE variants by catalogue type, not filename", () => {
+    const target = "brcm63xx/generic";
+    for (const type of [
+      "cfe",
+      "cfe-4M",
+      "cfe-8M",
+      "cfe-16M",
+      "cfe-AU",
+      "cfe-EU",
+      "cfe-old",
+      "cfe-bc221",
+    ]) {
+      assert.equal(
+        getHelpTextClass({ type, name: "firmware.bin" }, target),
+        "tr-cfe-help"
+      );
+    }
+    for (const [type, expected] of [
+      ["bin", "tr-other-help"],
+      ["cfe-backup", "tr-other-help"],
+      ["sysupgrade", "tr-sysupgrade-help"],
+      ["factory", "tr-factory-help"],
+    ]) {
+      assert.equal(
+        getHelpTextClass({ type, name: "router-cfe.bin" }, target),
+        expected
+      );
+    }
+    assert.equal(
+      getHelpTextClass({ type: "cfe", name: "router.bin" }, "x86/64"),
+      "tr-other-help"
+    );
+  });
+
+  it("shows CFE help for the BCM63xx snapshot target name", () => {
+    const catalogue = JSON.parse(
+      readFileSync(
+        new URL(
+          "../profiles/snapshots/targets/bcm63xx/generic/profiles.json",
+          import.meta.url
+        ),
+        "utf8"
+      )
+    );
+    const image = catalogue.profiles.actiontec_r1000h.images.find(
+      (i) => i.type === "cfe"
+    );
+    assert.equal(getHelpTextClass(image, catalogue.target), "tr-cfe-help");
+  });
+
   it("returns rootfs class", () => {
     assert.equal(
       getHelpTextClass({ type: "rootfs", name: "img.bin" }),
@@ -169,11 +238,108 @@ describe("getHelpTextClass", () => {
     );
   });
 
+  it("uses the boot mode only for exact x86 disk image types", () => {
+    for (const type of ["combined", "combined-efi"]) {
+      const image = {
+        type,
+        name: `openwrt-x86-64-generic-ext4-${type}.img.gz`,
+      };
+      assert.equal(getHelpTextClass(image, "x86/64"), `tr-x86-${type}-help`);
+      assert.equal(getHelpTextClass(image, "armsr/armv8"), "tr-other-help");
+      assert.equal(getHelpTextClass(image), "tr-other-help");
+    }
+    for (const [type, expected] of [
+      ["combined-sysupgrade", "tr-sysupgrade-help"],
+      ["combined-recovery", "tr-other-help"],
+      ["rootfs", "tr-rootfs-help"],
+    ]) {
+      assert.equal(
+        getHelpTextClass({ type, name: "disk.img" }, "x86/64"),
+        expected
+      );
+    }
+  });
+
   it("returns other class for unknown type", () => {
     assert.equal(
       getHelpTextClass({ type: "something", name: "img.bin" }),
       "tr-other-help"
     );
+  });
+});
+
+describe("getX86ImageFilesystem", () => {
+  const profile = { target: "x86/64", image_prefix: "openwrt-ext4-board" };
+
+  it("matches each of the six images in the legacy x86/64 catalogue", () => {
+    const catalogue = JSON.parse(
+      readFileSync(
+        new URL(
+          "../profiles/snapshots/targets/x86/64/profiles.json",
+          import.meta.url
+        ),
+        "utf8"
+      )
+    );
+    const generic = catalogue.profiles.generic;
+    const matches = generic.images.map((image) => {
+      const fs = getX86ImageFilesystem(image, { ...catalogue, id: "generic" });
+      assert.equal(
+        image.name,
+        `${generic.image_prefix}-${fs}-${image.type}.img.gz`
+      );
+      return `${fs}/${image.type}`;
+    });
+    assert.deepEqual(matches.sort(), [
+      "ext4/combined",
+      "ext4/combined-efi",
+      "ext4/rootfs",
+      "squashfs/combined",
+      "squashfs/combined-efi",
+      "squashfs/rootfs",
+    ]);
+  });
+
+  it("trusts filesystem metadata, including on virtual disks", () => {
+    const image = {
+      type: "combined-efi",
+      name: "custom.qcow2",
+      filesystem: "ext4",
+    };
+    assert.equal(getX86ImageFilesystem(image, profile), "ext4");
+    assert.equal(
+      getX86ImageFilesystem({ ...image, filesystem: "squashfs" }, profile),
+      "squashfs"
+    );
+    assert.equal(
+      getX86ImageFilesystem(image, { target: "armsr/armv8" }),
+      undefined
+    );
+    assert.equal(
+      getX86ImageFilesystem({ ...image, type: "combined-sysupgrade" }, profile),
+      undefined
+    );
+  });
+
+  it("does not guess from a model name, conflicting type or unsupported filesystem", () => {
+    const image = {
+      type: "rootfs",
+      name: "openwrt-ext4-board-squashfs-rootfs.img",
+    };
+    assert.equal(getX86ImageFilesystem(image, profile), "squashfs");
+    for (const changes of [
+      { filesystem: "f2fs" },
+      { name: "openwrt-ext4-board-rootfs.img.gz" },
+      { name: "other-model-squashfs-rootfs.img.gz" },
+      { name: "openwrt-ext4-board-squashfs-rootfs.img.sig" },
+      { type: "combined" },
+    ]) {
+      assert.equal(
+        getX86ImageFilesystem({ ...image, ...changes }, profile),
+        undefined
+      );
+    }
+    assert.equal(getX86ImageFilesystem(image, { target: "x86/64" }), undefined);
   });
 });
 
@@ -309,10 +475,7 @@ describe("sortImages", () => {
 
 describe("normalizePackageList", () => {
   it("keeps only string entries", () => {
-    assert.deepEqual(
-      normalizePackageList(["a", 1, null, "b"]),
-      ["a", "b"]
-    );
+    assert.deepEqual(normalizePackageList(["a", 1, null, "b"]), ["a", "b"]);
   });
 
   it("returns empty array for non-array", () => {
