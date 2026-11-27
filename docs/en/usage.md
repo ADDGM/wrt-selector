@@ -36,13 +36,13 @@ Distribution, service, version and device controls are locked while a build is a
 
 The editor starts empty. **Insert example for this system** appends the selected distribution's example without rewriting your commands or inserting the same example twice. Review the example for your device and installed packages.
 
-For both built-in examples, comments follow the interface language at insertion: Simplified Chinese (`zh-cn`) and Traditional Chinese (`zh-tw`) share the same Chinese comments; every other language uses English. Commands, sample values and runtime log messages stay the same. Changing the language leaves your draft untouched and cancels a pending insertion. To insert the other language, remove the existing example first; an intact example previously loaded in either language is not appended again.
+For both OpenWrt and ImmortalWrt, only the Simplified Chinese (`zh-cn`) and Traditional Chinese (`zh-tw`) interfaces insert the distribution’s Chinese script. All other interface languages use its English script by default. The two scripts apply the same settings; only their comments, log messages and error messages differ. Changing the language leaves your draft untouched and cancels a pending insertion. To insert the other language, remove the existing example first; an intact example previously loaded in either language is not appended again.
 
 Scripts are included in `/etc/uci-defaults/`. A script that returns success is removed; a nonzero result allows it to run again on a later boot. See the [OpenWrt UCI defaults guide](https://openwrt.org/docs/guide-developer/uci-defaults).
 
-### ImmortalWrt example
+### Built-in examples
 
-The [ImmortalWrt template](../../www/uci-defaults/immortalwrt.sh) leaves all settings commented out. Uncomment and edit only what you need:
+The [OpenWrt](../../www/uci-defaults/setup.sh) and [ImmortalWrt](../../www/uci-defaults/immortalwrt.sh) examples use the same commands. The script title, sample SSID and system log tag identify the distribution. The settings below are commented out; uncomment and edit only what you need.
 
 | Variables | Behavior |
 | --- | --- |
@@ -50,12 +50,12 @@ The [ImmortalWrt template](../../www/uci-defaults/immortalwrt.sh) leaves all set
 | `lan_ip_address` | Set an IPv4 address; CIDR removes an existing legacy netmask, while a bare address preserves it. Use CIDR for 25.12 and later |
 | `wlan_name`, `wlan_password` | Configure the first radio/interface when both exist; use an SSID up to 32 bytes and a password of 8–63 bytes |
 | `pppoe_username`, `pppoe_password` | Configure the existing WAN for PPPoE when both values are supplied |
-| `luci_language`, `use_argon` | Optionally select a LuCI language and use Argon (`1`) if its files are already installed |
-| `system_zonename`, `system_timezone` | Set both timezone values, for example `Asia/Shanghai` and `CST-8` |
 
-Leave Wi-Fi variables unset on devices without wireless hardware. LuCI language/theme changes are saved together; missing LuCI or Argon is skipped. The template does not install themes, contact package servers or restart services. Requested setting failures return a nonzero status. Its logging runs in a subshell, so later custom commands keep their normal output; when appending more commands, preserve any failure status you want the complete script to return.
+Both LAN examples (`192.168.10.1` and `192.168.10.1/24`) are commented out. If you enable one, make sure the address and subnet fit your network. Leave Wi-Fi blank on devices without wireless hardware.
 
-Logs are written to `/tmp/setup.log` with owner-only permissions and fixed status messages in the system log, without printing credentials. On read-only/overlay images, successful execution hides the script in the overlay while its original remains in `/rom`; a factory reset can run it again. Embedded passwords remain part of the firmware and are sent to the build service. Prefer setting credentials after first login.
+The personalization sections run even when all variables are commented out: they select Simplified Chinese in LuCI, switch to Argon only when its assets exist, and set the system time zone to `Asia/Shanghai` (`CST-8`). Edit or remove those sections to keep different defaults. The script does not install a language pack or theme, or restart services.
+
+The example writes `/tmp/setup.log` with owner-only permissions and sends status messages to the system log without printing credentials. Commands appended after the example also write to `/tmp/setup.log`. If a configuration write fails, the script exits with a nonzero status before those commands run. On read-only/overlay images the original script remains in `/rom` and a factory reset can run it again. Embedded credentials are sent to the build service and remain in the firmware; prefer setting them after first login.
 
 The shared template does not preconfigure Cooluc or another third-party feed. Build-time feed settings and on-device feed settings serve different purposes; see [the configuration guide](configuration.md#build-time-and-on-device-feeds).
 

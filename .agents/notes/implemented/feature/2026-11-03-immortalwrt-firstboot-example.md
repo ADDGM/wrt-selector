@@ -6,6 +6,8 @@ Status: implemented
 
 用户在发版前提供个人首次启动脚本，希望将可用部分纳入 ImmortalWrt 示例。原模板缺少配置对象与错误检查；提供的脚本重复提交 LuCI、无条件移除旧 netmask，并以 exit 0 掩盖请求失败。其 Cooluc 段固定 APK 25.12 源且公钥/摘要已脱敏，用户进一步询问页面已有软件源功能是否可以替代它。
 
+> 现行模板见[官方样式与双语日志](2026-11-28-localized-firstboot-examples.md)。本篇记录旧示例取舍；下文关于默认不开启任何设置、可选个性化开关和日志不翻译的规则已取代。设备与构建软件源的区分仍有效。
+
 ## Decision
 
 `www/uci-defaults/immortalwrt.sh` 是可编辑的基础示例。所有赋值默认注释，不改变未选择的配置；用户可以显式配置 root 密码、IPv4/CIDR LAN、第一组无线接口、PPPoE、LuCI 语言、已安装 Argon 和系统时区。配套 `immortalwrt.zh-cn.sh` 仅翻译注释，执行代码、日志和示例赋值保持一致；简中与繁中界面共用中文注释，其他语言插入英文，具体选择、去重与竞态由[分系统草稿](2026-10-30-uci-defaults-drafts.md)管理。配对中英文使用文档解释变量和风险，按系统隔离与分享契约不变。

@@ -6,6 +6,8 @@ Status: implemented
 
 双系统选择器原本始终读取同一个 setup.sh，并在切换发行版时保留同一编辑框内容。用户确认 OpenWrt 与 ImmortalWrt 应分别使用对应模板和草稿，而同一 ImmortalWrt 的官方与 KyaruCloud 后端应共用草稿。将发行版名称替换进用户命令，或让迟到的模板响应写入另一系统，会破坏这一约定。
 
+> 现行模板见[官方样式与双语日志](2026-11-28-localized-firstboot-examples.md)。本篇的草稿与选模规则仍有效；下文关于仅翻译注释、日志相同及 OpenWrt 示例不变的叙述为当时行为，现由新决定取代。
+
 ## Decision
 
 `www/js/uci-defaults.js` 独立负责示例加载和草稿状态；`main.js` 在服务切换时通知它当前 distribution。草稿以 distribution 为键保留在当前页面内存，空草稿也保留；按服务 id 存草稿会使同一系统切后端丢失上下文，因此不采用。刷新页面后状态清空。

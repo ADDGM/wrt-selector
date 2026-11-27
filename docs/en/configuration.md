@@ -89,7 +89,7 @@ uci_defaults_templates: {
 
 Use the exact distribution names from `asu_services`. Unconfigured distributions fall back to the template button's `data-link`. Templates load only when the user requests an example; they do not prefill or persist drafts. See [draft behavior](usage.md#first-boot-scripts).
 
-Both `zh-cn` and `zh-tw` interfaces select the Chinese URL stored under `zh-cn`; all other languages select `en`. A missing Chinese URL falls back to `en`, then to `data-link` when no usable mapping exists. Single-URL configurations still work for every language. Changing the interface language does not translate or replace existing drafts. Keep localized templates equivalent in commands, sample assignments and log messages; translate comments only.
+Both `zh-cn` and `zh-tw` interfaces select the Chinese URL stored under `zh-cn`; all other languages select `en`. A missing Chinese URL falls back to `en`, then to `data-link` when no usable mapping exists. Single-URL configurations still work for every language. Changing the interface language does not translate or replace existing drafts. Localize comments, status messages and errors. Keep shell commands, sample assignments and device settings equivalent; translate neither UCI keys nor their values.
 
 ## Hosting firmware metadata yourself
 

@@ -1,173 +1,150 @@
 #!/bin/sh
-# ImmortalWrt first-boot example. Uncomment and edit only the settings you need.
-# Blank/unset values preserve the device's existing configuration.
-# On read-only/overlay images, the script remains in /rom/etc/uci-defaults/;
-# success hides it in the overlay, and a factory reset can make it run again.
-# Passwords in this script are sent to the build service and included in the
-# firmware. Prefer setting credentials through LuCI after the first login.
+# ImmortalWrt first-boot configuration script
 #
-# root_password=""
-# For 24.10 and earlier, a bare IPv4 address preserves the existing netmask:
-# lan_ip_address="192.168.10.1"
-# For 25.12 and later, use CIDR; only CIDR input removes a legacy netmask:
-# lan_ip_address="192.168.10.1/24"
-# No wireless settings are needed on an x86 device without a wireless radio.
+# On firmware with a read-only base and an overlay, the original stays in /rom/etc/uci-defaults/.
+# After a successful run the script is hidden only in the current overlay; a factory reset runs it again.
+# Passwords, Wi-Fi keys and PPPoE credentials entered here are sent to the online build service and remain in the firmware.
+# Prefer setting credentials in LuCI after the first login. Uncomment only the settings you want to change.
+#
+# ==========================================
+# Basic settings
+# ==========================================
+#
+# Many x86 routers have no wireless hardware. Leave these settings blank to skip Wi-Fi.
 # wlan_name="ImmortalWrt"
 # wlan_password=""
+#
+# Leave blank to keep the root password. Avoid weak passwords such as password or 123456.
+# root_password=""
+#
+# Leave the LAN address unchanged unless needed. Uncomment only the line for your version:
+# 24.10 and earlier: use an IPv4 address and keep the existing netmask.
+# lan_ip_address="192.168.10.1"
+# 25.12 and later: use CIDR notation; /24 is equivalent to 255.255.255.0.
+# lan_ip_address="192.168.10.1/24"
+#
+# Leave blank to keep the current WAN configuration. Devices using DHCP do not need these settings.
 # pppoe_username=""
 # pppoe_password=""
-# Optional LuCI language, installed Argon theme and system timezone:
-# luci_language="zh_cn"
-# use_argon="1"
-# system_zonename="Asia/Shanghai"
-# system_timezone="CST-8"
 
-# Keep logging, helper functions and exit status local when this is appended
-# to another script. No package downloads, installations or service restarts.
-(
-  umask 077
-  exec >/tmp/setup.log 2>&1
-  chmod 0600 /tmp/setup.log || exit 1
-  LC_ALL=C
-  export LC_ALL
-  iwrt_status=0
+# ==========================================
+# Logging
+# ==========================================
+# Write a fresh log to /tmp/setup.log, readable and writable only by root.
+# ------------------------------------------
+export LC_ALL=C
+setup_log=$(mktemp /tmp/setup.log.XXXXXX) || exit 1
+exec >"$setup_log" 2>&1
+mv -fT "$setup_log" /tmp/setup.log || exit 1
+log() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"
+  logger -t immortalwrt-firstboot "$1" 2>/dev/null || :
+}
+fail() { log "Error: $1"; exit 1; }
+log "Starting first-boot configuration"
 
-  iwrt_log() {
-    printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"
-    logger -t immortalwrt-firstboot "$1" 2>/dev/null || :
-  }
+# ==========================================
+# Set the root password
+# ==========================================
+if [ -n "${root_password:-}" ]; then
+  printf '%s\n%s\n' "$root_password" "$root_password" | passwd root >/dev/null 2>&1 || fail "Could not set the root password"
+  log "Root password set"
+fi
 
-  iwrt_error() {
-    iwrt_status=1
-    iwrt_log "ERROR: $1"
-  }
-
-  iwrt_ipv4() {
-    case "$1" in ''|*[!0-9./]*) return 1 ;; esac
-    awk -v address="$1" 'BEGIN {
-      n = split(address, parts, "/")
-      if (n > 2 || (n == 2 && (parts[2] !~ /^[0-9]+$/ || parts[2] > 32))) exit 1
-      if (split(parts[1], octets, /\./) != 4) exit 1
-      for (i = 1; i <= 4; i++)
-        if (octets[i] !~ /^[0-9]+$/ || length(octets[i]) > 3 || octets[i] > 255) exit 1
-    }'
-  }
-
-  iwrt_log "Starting ImmortalWrt first-boot settings"
-
-  # Commit language and theme together, only when LuCI is installed.
-  if [ -n "${luci_language:-}" ] || [ "${use_argon:-0}" = "1" ]; then
-    if uci -q get luci.main >/dev/null; then
-      iwrt_luci_ok=1
-      iwrt_luci_changed=0
-      if [ -n "${luci_language:-}" ]; then
-        uci -q set "luci.main.lang=$luci_language" || iwrt_luci_ok=0
-        iwrt_luci_changed=1
-      fi
-      if [ "${use_argon:-0}" = "1" ]; then
-        if [ -d /www/luci-static/argon ]; then
-          uci -q set luci.main.mediaurlbase='/luci-static/argon' || iwrt_luci_ok=0
-          iwrt_luci_changed=1
-        else
-          iwrt_log "Argon is not installed; keeping the current theme"
-        fi
-      fi
-      if [ "$iwrt_luci_ok" = "0" ]; then
-        iwrt_error "Could not set LuCI options"
-      elif [ "$iwrt_luci_changed" = "1" ]; then
-        if uci -q commit luci; then
-          iwrt_log "LuCI options saved"
-        else
-          iwrt_error "Could not save LuCI options"
-        fi
-      fi
-    else
-      iwrt_log "LuCI is not installed; skipping language and theme"
-    fi
+# ==========================================
+# Configure the LAN address
+# ==========================================
+# More options: https://openwrt.org/docs/guide-user/base-system/basic-networking
+# ------------------------------------------
+if [ -n "${lan_ip_address:-}" ]; then
+  if ! printf '%s\n' "$lan_ip_address" | awk -F '[./]' '
+    /^[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+(\/[0-9]+)?$/ {
+      ok = (NF == 4 || $5+0 <= 32)
+      for (i = 1; i <= 4; i++) if (length($i) > 3 || $i+0 > 255) ok = 0
+    }
+    END { exit !(NR == 1 && ok) }'; then
+    fail "Invalid LAN address: use an IPv4 address, optionally followed by a /0 to /32 prefix"
   fi
+  uci -q get network.lan >/dev/null || fail "network.lan not found"
+  uci set network.lan.ipaddr="$lan_ip_address" || fail "Could not set the LAN address"
+  case "$lan_ip_address" in
+    */*) if uci -q get network.lan.netmask >/dev/null; then
+           uci -q delete network.lan.netmask || fail "Could not remove the old netmask"
+         fi ;;
+  esac
+  uci commit network || fail "Could not save the LAN configuration"
+  log "LAN address set to $lan_ip_address"
+fi
 
-  if [ -n "${system_zonename:-}" ] || [ -n "${system_timezone:-}" ]; then
-    if [ -z "${system_zonename:-}" ] || [ -z "${system_timezone:-}" ]; then
-      iwrt_error "Set both system_zonename and system_timezone"
-    elif uci -q get 'system.@system[0]' >/dev/null &&
-         uci -q set "system.@system[0].zonename=$system_zonename" &&
-         uci -q set "system.@system[0].timezone=$system_timezone" &&
-         uci -q commit system; then
-      iwrt_log "System timezone saved"
-    else
-      iwrt_error "Could not configure the system timezone"
-    fi
-  fi
-
-  if [ -n "${root_password:-}" ]; then
-    if printf '%s\n%s\n' "$root_password" "$root_password" | passwd root >/dev/null 2>&1; then
-      iwrt_log "Root password saved"
-    else
-      iwrt_error "Could not set the root password"
-    fi
-  fi
-
-  if [ -n "${lan_ip_address:-}" ]; then
-    if ! iwrt_ipv4 "$lan_ip_address"; then
-      iwrt_error "LAN requires an IPv4 address with an optional /0 to /32 prefix"
-    elif ! uci -q get network.lan >/dev/null; then
-      iwrt_error "LAN interface not found"
-    else
-      iwrt_lan_ok=1
-      uci -q set "network.lan.ipaddr=$lan_ip_address" || iwrt_lan_ok=0
-      case "$lan_ip_address" in
-        */*)
-          if [ "$iwrt_lan_ok" = "1" ] && uci -q get network.lan.netmask >/dev/null; then
-            uci -q delete network.lan.netmask || iwrt_lan_ok=0
-          fi
-          ;;
-      esac
-      if [ "$iwrt_lan_ok" = "1" ] && uci -q commit network; then
-        iwrt_log "LAN address saved"
-      else
-        iwrt_error "Could not save LAN settings"
-      fi
-    fi
-  fi
-
-  if [ -n "${wlan_name:-}" ] || [ -n "${wlan_password:-}" ]; then
-    if [ -z "${wlan_name:-}" ] || [ -z "${wlan_password:-}" ]; then
-      iwrt_error "Set both wlan_name and wlan_password"
-    elif [ "${#wlan_name}" -gt 32 ] || [ "${#wlan_password}" -lt 8 ] || [ "${#wlan_password}" -gt 63 ]; then
-      iwrt_error "Wi-Fi needs an SSID of at most 32 bytes and a password of 8 to 63 bytes"
-    elif uci -q get 'wireless.@wifi-device[0]' >/dev/null &&
-         uci -q get 'wireless.@wifi-iface[0]' >/dev/null &&
-         uci -q set 'wireless.@wifi-device[0].disabled=0' &&
-         uci -q set 'wireless.@wifi-iface[0].disabled=0' &&
-         uci -q set 'wireless.@wifi-iface[0].encryption=psk2' &&
-         uci -q set "wireless.@wifi-iface[0].ssid=$wlan_name" >/dev/null 2>&1 &&
-         uci -q set "wireless.@wifi-iface[0].key=$wlan_password" >/dev/null 2>&1 &&
-         uci -q commit wireless; then
-      iwrt_log "First wireless interface configured"
-    else
-      iwrt_error "Wireless interface missing or configuration failed"
-    fi
-  fi
-
-  if [ -n "${pppoe_username:-}" ] || [ -n "${pppoe_password:-}" ]; then
-    if [ -z "${pppoe_username:-}" ] || [ -z "${pppoe_password:-}" ]; then
-      iwrt_error "Set both pppoe_username and pppoe_password"
-    elif uci -q get network.wan >/dev/null &&
-         uci -q set network.wan.proto=pppoe &&
-         uci -q set "network.wan.username=$pppoe_username" >/dev/null 2>&1 &&
-         uci -q set "network.wan.password=$pppoe_password" >/dev/null 2>&1 &&
-         uci -q commit network; then
-      iwrt_log "PPPoE settings saved"
-    else
-      iwrt_error "WAN interface missing or PPPoE configuration failed"
-    fi
-  fi
-
-  sync || iwrt_error "Could not flush filesystem changes"
-  if [ "$iwrt_status" = "0" ]; then
-    iwrt_log "All requested first-boot settings completed"
+# ==========================================
+# Configure Wi-Fi (only the first radio and interface, as in the upstream example)
+# ==========================================
+# More options: https://openwrt.org/docs/guide-user/network/wifi/basic#wi-fi_interfaces
+# ------------------------------------------
+if [ -n "${wlan_name:-}" ] && [ -n "${wlan_password:-}" ]; then
+  if [ "${#wlan_password}" -lt 8 ]; then
+    log "Wi-Fi password is shorter than 8 bytes; skipping Wi-Fi"
+  elif [ "${#wlan_name}" -gt 32 ] || [ "${#wlan_password}" -gt 63 ]; then
+    log "SSID exceeds 32 bytes or password exceeds 63 bytes; skipping Wi-Fi"
+  elif ! uci -q get 'wireless.@wifi-device[0]' >/dev/null || ! uci -q get 'wireless.@wifi-iface[0]' >/dev/null; then
+    log "Wireless radio or interface not found; skipping Wi-Fi"
   else
-    iwrt_log "Some settings failed; uci-defaults may retry this script on the next boot"
+    uci set "wireless.@wifi-iface[0].ssid=$wlan_name" &&
+    uci -q set "wireless.@wifi-iface[0].key=$wlan_password" &&
+    uci set 'wireless.@wifi-iface[0].encryption=psk2' &&
+    uci set 'wireless.@wifi-iface[0].disabled=0' &&
+    uci set 'wireless.@wifi-device[0].disabled=0' &&
+    uci commit wireless || fail "Could not save the wireless configuration"
+    log "Wi-Fi configured"
   fi
-  exit "$iwrt_status"
-)
+fi
+
+# ==========================================
+# Configure PPPoE
+# ==========================================
+# More options: https://openwrt.org/docs/guide-user/network/wan/wan_interface_protocols#protocol_pppoe_ppp_over_ethernet
+# ------------------------------------------
+if [ -n "${pppoe_username:-}" ] && [ -n "${pppoe_password:-}" ]; then
+  uci -q get network.wan >/dev/null || fail "network.wan not found"
+  uci -q set network.wan.username="$pppoe_username" &&
+  uci -q set network.wan.password="$pppoe_password" &&
+  uci set network.wan.proto='pppoe' &&
+  uci commit network || fail "Could not save the PPPoE configuration"
+  log "PPPoE configured"
+fi
+
+# ==========================================
+# Personal settings: Simplified Chinese in LuCI and the Argon theme. No language packs or themes are installed.
+# ==========================================
+if uci -q get luci.main >/dev/null; then
+  # Set the default LuCI language to Simplified Chinese.
+  uci set luci.main.lang='zh_cn' || fail "Could not set the LuCI language"
+
+  # Switch themes only if the Argon assets are present.
+  if [ -d /www/luci-static/argon ]; then
+    uci set luci.main.mediaurlbase='/luci-static/argon' || fail "Could not set the Argon theme"
+  else
+    log "Argon not found; keeping the current theme"
+  fi
+
+  # Save the language and theme in one commit.
+  uci commit luci || fail "Could not save the LuCI configuration"
+  log "LuCI configuration saved; default language set to Simplified Chinese"
+else
+  log "LuCI configuration not found; skipping language and theme settings"
+fi
+
+# ==========================================
+# Personal settings: Shanghai time zone
+# ==========================================
+if uci -q get 'system.@system[0]' >/dev/null; then
+  uci set 'system.@system[0].zonename=Asia/Shanghai' &&
+  uci set 'system.@system[0].timezone=CST-8' &&
+  uci commit system || fail "Could not save the time zone configuration"
+  log "System time zone set to Asia/Shanghai"
+else
+  log "System configuration not found; skipping time zone settings"
+fi
+
+sync || fail "Could not flush changes to disk"
+log "First-boot configuration complete"

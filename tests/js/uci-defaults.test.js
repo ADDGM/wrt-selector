@@ -218,7 +218,7 @@ const localizedConfig = {
 };
 
 describe("localized script examples", () => {
-  it("selects shared Chinese comments for zh-cn and zh-tw, and English for other languages", async () => {
+  it("selects the shared Chinese example for zh-cn and zh-tw, and English for other languages", async () => {
     const urls = [];
     globalThis.fetch = async (url) => {
       urls.push(url);
@@ -233,7 +233,7 @@ describe("localized script examples", () => {
         await ui.button.onclick();
         const expected =
           localizedConfig.uci_defaults_templates[distribution][
-          ["zh-cn", "zh-tw"].includes(language) ? "zh-cn" : "en"
+            ["zh-cn", "zh-tw"].includes(language) ? "zh-cn" : "en"
           ];
         assert.equal(urls.at(-1), expected);
         assert.equal(ui.input.value, `# ${expected}\necho done\n`);
@@ -330,19 +330,46 @@ describe("localized script examples", () => {
     }
   });
 
-  it("loads real configured templates whose translations preserve code, logs and sample assignments", async () => {
+  it("loads real localized examples without changing commands, arguments or sample assignments", async () => {
     const root = new URL("../../www/", import.meta.url);
+    const index = readFileSync(new URL("index.html", root), "utf8");
+    const select = index.match(
+      /<select\b[^>]*\sid=["']languages-select["'][^>]*>([\s\S]*?)<\/select>/i
+    );
+    assert.ok(select, "missing page language selector");
+    const languages = Array.from(
+      select[1].matchAll(/<option\b[^>]*>/gi),
+      ([tag]) => {
+        const value = tag.match(/\svalue\s*=\s*["']([^"']+)["']/i);
+        assert.ok(value, `missing language value: ${tag}`);
+        return value[1];
+      }
+    );
+    for (const required of ["en", "zh-cn", "zh-tw"])
+      assert.ok(
+        languages.includes(required),
+        `missing page language: ${required}`
+      );
     const context = {};
     runInNewContext(readFileSync(new URL("config.js", root), "utf8"), context);
     globalThis.fetch = async (url) =>
       response(readFileSync(new URL(url, root), "utf8"));
     const ui = mount(context.config);
+    const han = /\p{Script=Han}/u;
+    let openWrtExamples;
+    const message = /\b(log|fail) "([^"]+)"/g;
+    // Compare shell commands and interpolated variables, not human-readable prose.
     const executableAndOptions = (text) =>
       text
         .split("\n")
         .filter(
           (line) =>
             !line.trimStart().startsWith("#") || /^\s*#(?:!|\s*\w+=)/.test(line)
+        )
+        .map((line) =>
+          line.replace(message, (_, command, text) =>
+            [command, ...(text.match(/\$\w+/g) || [])].join(" ")
+          )
         );
     for (const distribution of ["OpenWrt", "ImmortalWrt"]) {
       ui.select(distribution);
@@ -354,12 +381,46 @@ describe("localized script examples", () => {
       await ui.button.onclick();
       const chinese = ui.input.value;
       assert.match(chinese, /#.*[\u4e00-\u9fff]/);
-      assert.notEqual(english, chinese);
+      assert.doesNotMatch(english, han);
+      const messages = [...chinese.matchAll(message)];
+      assert.ok(messages.length > 0);
+      assert.ok(messages.every(([, , text]) => han.test(text)));
+      for (const language of languages) {
+        ui.edit("");
+        ui.selectLanguage(language);
+        await ui.button.onclick();
+        const expected = ["zh-cn", "zh-tw"].includes(language)
+          ? chinese
+          : english;
+        assert.equal(ui.input.value, expected, `${distribution} / ${language}`);
+      }
+      for (const example of [english, chinese]) {
+        assert.ok(
+          example.includes(`logger -t ${distribution.toLowerCase()}-firstboot`)
+        );
+        assert.ok(example.includes(`# wlan_name="${distribution}"`));
+        assert.deepEqual(example.match(/^# lan_ip_address=.*$/gm), [
+          '# lan_ip_address="192.168.10.1"',
+          '# lan_ip_address="192.168.10.1/24"',
+        ]);
+        assert.ok(!example.includes("[IP]"));
+      }
+      const examples = [english, chinese];
+      if (distribution === "OpenWrt") openWrtExamples = examples;
+      else {
+        assert.deepEqual(
+          examples.map((script) =>
+            script
+              .replaceAll("ImmortalWrt", "OpenWrt")
+              .replaceAll("immortalwrt-firstboot", "openwrt-firstboot")
+          ),
+          openWrtExamples
+        );
+      }
       assert.deepEqual(
         executableAndOptions(english),
         executableAndOptions(chinese)
       );
-      assert.match(chinese, new RegExp(`# wlan_name="${distribution}"`));
     }
   });
 });
